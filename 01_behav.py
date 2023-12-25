@@ -145,6 +145,43 @@ for session in ["AM", "PM"] :
 probe = pd.concat(probelist)
 probe["mindstate"] = [probe_int_str[value] for value in probe.PQ1_respval]
 
-per_ms = {mindstate : probe.mindstate[probe.mindstate == mindstate].shape[0]/probe.mindstate.shape[0] for mindstate in probe.mindstate.unique()}
+per_ms = {mindstate : 
+          probe.mindstate[probe.mindstate == mindstate
+                          ].shape[0]/probe.mindstate.shape[0] 
+          for mindstate in probe.mindstate.unique()}
 
+import seaborn as sns
 
+ax = sns.barplot(x = per_ms.keys(), y = per_ms.values())
+for p in ax.patches:
+    ax.text(
+        p.get_x() + p.get_width()/2., 
+        p.get_height()+.02, 
+        '{:0.3f}'.format(p.get_height()), 
+        fontsize=12, 
+        color='black', 
+        ha='center', 
+        va='bottom'
+        )
+plt.show()
+
+features = ["session", "mindstate", "percentage"]
+thisdic = {feature : [] for feature in features}
+for session in probe.session_type.unique():
+    for mindstate in probe.mindstate.unique() :
+        thisdic["session"].append(session)
+        thisdic["mindstate"].append(mindstate)
+        thisdic["percentage"].append(
+            probe.loc[
+                (probe.session_type == session) 
+                & (probe.mindstate == mindstate)
+                ].shape[0] / probe.loc[
+                    (probe.session_type == session)
+                    ].shape[0]
+            )
+
+df = pd.DataFrame.from_dict(thisdic)
+
+sns.pointplot(
+    df, x = 'session', y = 'percentage', hue = 'mindstate', dodge = True
+    )
