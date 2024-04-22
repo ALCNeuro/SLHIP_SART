@@ -16,6 +16,24 @@ rawDataPath = rootpath + "/00_Raw"
 behavDataPath = rootpath + "/01_BehavData"
 cleanDataPath = rootpath + "/02_Preproc"
 
+config_dict = {
+      "file_format": "BrainVision",
+      "load_and_preprocess": {
+        "montage": "standard_1020",
+        "l_freq": 0.1,
+        "h_freq": 100,
+        "notch_freq": 50,
+        "f_resample" : 256
+      },
+      "channel_interpolation": {
+        "method": "automatic"
+      },
+      "ica": {
+        "n_components": 15,
+        "l_freq": 1.0,
+        "iclabel_threshold": 0.7
+      }
+    }
 
 # %% Functions
 
@@ -107,89 +125,69 @@ def display_matrices_info(mat_type):
     #### Pipeline
     
 import mne
-import json
 
-def load_and_preprocess_data(config_path):
+def load_and_preprocess_data(file_path):
+    """
+    Parameters
+    ----------
+    file_path : str
+        Path to the data_file.
+
+    Returns
+    -------
+    raw : mne.io.Raw
+        Minimally processed Raw from the path.
+    """
     # Load configuration
-    with open(config_path, 'r') as f:
-        config = json.load(f)
     
-    file_format = config['file_format']
-    settings = config['load_and_preprocess']
-    supported_formats = ['BrainVision', 'EDF', 'BDF', 'CTF']
+    file_format = config_dict['file_format']
+    settings = config_dict['load_and_preprocess']
+    supported_formats = ['BrainVision']
     
     # Ensure the file format is supported
     assert file_format in supported_formats, f"File format {file_format} not supported."
 
     # Load the raw data based on the file format
     if file_format == "BrainVision":
-        raw = mne.io.read_raw_brainvision(settings['file_path'], preload=True)
-    elif file_format == "EDF":
-        raw = mne.io.read_raw_edf(config['additional_formats']['EDF']['file_path'], preload=True)
-    elif file_format == "BDF":
-        raw = mne.io.read_raw_bdf(config['additional_formats']['BDF']['file_path'], preload=True)
-    elif file_format == "CTF":
-        raw = mne.io.read_raw_ctf(config['additional_formats']['CTF']['file_path'], preload=True)
+        raw = mne.io.read_raw_brainvision(file_path, preload=True)
     
     # Apply preprocessing steps
-    raw.set_montage(mne.channels.make_standard_montage(settings['montage']), on_missing='ignore')
-    raw.filter(settings['l_freq'], settings['h_freq'], fir_design='firwin')
-    raw.notch_filter(settings['notch_freq'], filter_length='auto', phase='zero')
+    raw.set_montage(
+        mne.channels.make_standard_montage(settings['montage']), 
+        on_missing='ignore'
+        )
+    raw.filter(
+        settings['l_freq'], settings['h_freq'], fir_design='firwin'
+        )
+    raw.notch_filter(
+        settings['notch_freq'], filter_length='auto', phase='zero'
+        )
+    raw.resample(settings['f_resample'])
     
     # Return the preprocessed data
     return raw
 
-
-def load_and_preprocess_data(file_path, montage='standard_1020', l_freq=0.1, h_freq=100, notch_freq=50, channel_types=None):
-    """
-    Load and preprocess EEG data, with the ability to specify channel types.
-
-    Parameters:
-    - file_path: str, path to the EEG file.
-    - montage: str, name of the montage to use.
-    - l_freq: float, high-pass filter frequency.
-    - h_freq: float, low-pass filter frequency.
-    - notch_freq: float, frequency for notch filtering.
-    - channel_types: dict, a dictionary mapping channel names to their types (e.g., {'EOG': ['EOG 061', 'EOG 062']}).
-
-    Returns:
-    - mne.io.Raw: preprocessed raw data.
-    """
-    # Load the raw data
-    raw = mne.io.read_raw_brainvision(file_path, preload=True)
-
-    # Set channel types if provided
-    if channel_types:
-        for ch_type, ch_names in channel_types.items():
-            raw.set_channel_types({ch_name: ch_type for ch_name in ch_names})
-
-    # Set montage
-    raw.set_montage(
-        mne.channels.make_standard_montage(montage), on_missing='ignore'
-        )
-    
-    # Resample, re-reference, and filter
-    raw.resample(250)
-    raw.set_eeg_reference('average')
-    raw.filter(l_freq, h_freq, fir_design='firwin')
-    raw.notch_filter(notch_freq, filter_length='auto', phase='zero')
-    
-    return raw
-
-
 def handle_events(raw, merge_dict=None):
     """
     Extract and handle events from raw EEG data.
+    
+    Parameters
+    ----------
+    raw : mne.io.Raw
+        The preprocessed raw data.
+    merge_dict : dict, optional
+        dictionary with keys as new event IDs and values as lists of event IDs to be merged. 
+        The default is None.
 
-    Parameters:
-    - raw: mne.io.Raw, the preprocessed raw data.
-    - merge_dict: dict, optional; 
-    dictionary with keys as new event IDs and values as lists of event IDs to be merged.
+    Returns
+    -------
+    events : numpy.ndarray
+        The events array after handling.
+    event_id : dict
+        the event dictionary after handling.
 
-    Returns:
-    - events: numpy.ndarray; the events array after handling.
-    - event_id: dict; the event dictionary after handling.
     """
+
     import mne
     # Extract events
     events, event_id = mne.events_from_annotations(raw)
@@ -206,45 +204,7 @@ def handle_events(raw, merge_dict=None):
 
     return events, event_id
 
-def create_epochs(
-        raw, 
-        events, 
-        event_id, 
-        tmin=-0.2, 
-        tmax=1.2, 
-        baseline=None, 
-        reject=None, 
-        log_errors=True
-        ):
-    """
-    Create epochs from raw EEG data, with additional handling for common preprocessing needs.
-
-    Parameters:
-    - raw: mne.io.Raw, the preprocessed raw data.
-    - events: numpy.ndarray, the events array.
-    - event_id: dict, the event dictionary.
-    - tmin: float, start time before event.
-    - tmax: float, end time after event.
-    - baseline: tuple, the baseline period.
-    - reject: dict, rejection parameters.
-    - log_errors: bool, whether to log errors encountered during epoch creation.
-
-    Returns:
-    - epochs: mne.Epochs, the created epochs or None if an error occurs.
-    """
-    from mne import Epochs
-    try:
-        epochs = Epochs(raw, events, event_id=event_id, tmin=tmin, tmax=tmax,
-                            baseline=baseline, preload=True, reject=reject, event_repeated='drop')
-        return epochs
-    except Exception as e:
-        if log_errors:
-            print(f"Error creating epochs: {e}")
-        return None
-
-
-
-def automatic_ica_and_report(
+def automatic_ica(
         raw, 
         sub_id, 
         output_dir, 
@@ -255,21 +215,36 @@ def automatic_ica_and_report(
         iclabel_threshold=0.7
         ):
     """
-    Perform ICA to identify and remove artifacts, and generate a comprehensive report.
 
-    Parameters:
-    - raw: Instance of Raw.
-    - sub_id: Subject identifier.
-    - output_dir: Directory to save the outputs.
-    - n_components: Number of components for ICA.
-    - l_freq: High-pass filter cutoff before ICA.
-    - eog_ch: EOG channel name(s) for artifact detection.
-    - ecg_ch: ECG channel name for artifact detection.
-    - iclabel_threshold: Threshold for excluding components based on ICLabel classification.
+    Parameters
+    ----------
+    raw : mne.io.raw
+        Instance of Raw..
+    sub_id : str
+        Subject identifier..
+    output_dir : str
+        Directory to save the outputs.TION.
+    n_components : int, optional
+        Number of components for ICA. The default is 15.
+    l_freq : float, optional
+        High-pass filter cutoff before ICA. The default is 1.0.
+    eog_ch : str, optional
+        EOG channel name(s) for artifact detection.. The default is None.
+    ecg_ch : str, optional
+        CG channel name for artifact detection.. The default is None.
+    iclabel_threshold : float, optional
+        Threshold for excluding components based on ICLabel classification. 
+        The default is 0.7.
+
+    Returns
+    -------
+    ica : mne.preprocessing.ICA
+        Saved ICA fitted on a copy of raw, high_pass filtered.
+
     """
     import os
-    import mne
-    from mne.preprocessing import ICA, create_eog_epochs, create_ecg_epochs
+    # import mne
+    from mne.preprocessing import ICA
     from mne_icalabel import label_components
     # Preprocess: High-pass filter
     filt_raw = raw.copy().filter(l_freq=l_freq, h_freq=None)
@@ -297,16 +272,7 @@ def automatic_ica_and_report(
     ica.save(os.path.join(output_dir, f'{sub_id}-ica.fif'))
     with open(os.path.join(output_dir, f'{sub_id}-ica-exclude.txt'), 'w') as f:
         f.write('\n'.join(map(str, ica.exclude)))
-
-    # Generate report
-    report = mne.Report(title=f'ICA Report for {sub_id}')
-    report.add_ica(ica=ica, title='ICA Components', inst=raw)
-    if eog_ch or ecg_ch:
-        report.add_epochs(create_eog_epochs(filt_raw) if eog_ch else create_ecg_epochs(filt_raw), title='Artifact Epochs')
-    report.save(os.path.join(output_dir, f'report_{sub_id}.html'), overwrite=True)
-
     return ica
-
 
 def generate_flexible_report(
         raw, epochs, ica, sub_id, output_dir, 
