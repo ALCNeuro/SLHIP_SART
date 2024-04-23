@@ -45,6 +45,25 @@ incomplete_subjects = ["HS_001", "HS_004"]
     #### Utils
 
 def find_closest_value(value1, arr2):
+    """
+    Find the closest value comparing a value to an array and returns index 
+    and value of the closest value
+
+    Parameters
+    ----------
+    value1 : float
+        Value to find the closest element to.
+    arr2 : np.array
+        Array in which you want to find a close element.
+
+    Returns
+    -------
+    index_closest_value : int
+        Index of the closest value.
+    closest_value : float
+        Closest value.
+
+    """
     import numpy as np
     index_closest_value = []
     closest_value = []
@@ -133,6 +152,8 @@ import mne
 
 def load_and_preprocess_data(file_path):
     """
+    Load a raw file from a path, and minimally preprocess it based on the 
+    settings in this script (config)
     Parameters
     ----------
     file_path : str
@@ -147,7 +168,7 @@ def load_and_preprocess_data(file_path):
     
     file_format = config_dict['file_format']
     settings = config_dict['load_and_preprocess']
-    supported_formats = ['BrainVision']
+    supported_formats = ['BrainVision', 'EDF', 'FIF']
     channel_types = settings["channel_types"]
     
     # Ensure the file format is supported
@@ -156,6 +177,10 @@ def load_and_preprocess_data(file_path):
     # Load the raw data based on the file format
     if file_format == "BrainVision":
         raw = mne.io.read_raw_brainvision(file_path, preload=True)
+    elif file_format == "EDF":
+        raw = mne.io.read_raw_edf(file_path, preload=True)
+    elif file_format == "FIF":
+        raw = mne.io.read_fif(file_path, preload=True)
     
     # Apply preprocessing steps
     raw.set_channel_types(channel_types)
