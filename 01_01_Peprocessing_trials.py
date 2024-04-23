@@ -3,6 +3,8 @@
 author = Arthur LC
 
 01_01_Preprocessing_trials.py
+
+
 """
 # %% IMPORT MODULES
 import os
@@ -37,16 +39,7 @@ files = glob(os.path.join(path_data, '**' , '*SART*.vhdr'))
 file_path = f'{path_data}/sub_HS_001/SLHIP_2024_02_02_HS_001_SART_AM.vhdr'
 sub_id = file_path.split('/sub_')[1][:6]
 
-channel_types = {'eog': ['VEOG','HEOG'], 'ecg' : ['ECG'], 'resp' : ['RESP']}
-
-raw = cfg.load_and_preprocess_data(
-    file_path,
-    montage='standard_1020', 
-    l_freq=0.1, 
-    h_freq=100, 
-    notch_freq=50,
-    channel_types=channel_types
-    )
+raw = cfg.load_and_preprocess_data(file_path)
 
 # Handle events
 merge_dict = {

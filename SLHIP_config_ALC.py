@@ -13,17 +13,20 @@ SLHIP_config_ALC.py
 rootpath = "/Volumes/DDE_ALC/PhD/SLHIP"
 
 rawDataPath = rootpath + "/00_Raw"
-behavDataPath = rootpath + "/01_BehavData"
-cleanDataPath = rootpath + "/02_Preproc"
+cleanDataPath = rootpath + "/01_Preproc"
 
 config_dict = {
       "file_format": "BrainVision",
       "load_and_preprocess": {
+        "referencing" : "average",
         "montage": "standard_1020",
         "l_freq": 0.1,
         "h_freq": 100,
         "notch_freq": 50,
-        "f_resample" : 256
+        "f_resample" : 256,
+        "channel_types" : {
+            'eog': ['VEOG','HEOG'], 'ecg' : ['ECG'], 'resp' : ['RESP']
+            }
       },
       "channel_interpolation": {
         "method": "automatic"
@@ -34,6 +37,8 @@ config_dict = {
         "iclabel_threshold": 0.7
       }
     }
+
+incomplete_subjects = ["HS_001", "HS_004"]
 
 # %% Functions
 
@@ -143,6 +148,7 @@ def load_and_preprocess_data(file_path):
     file_format = config_dict['file_format']
     settings = config_dict['load_and_preprocess']
     supported_formats = ['BrainVision']
+    channel_types = settings["channel_types"]
     
     # Ensure the file format is supported
     assert file_format in supported_formats, f"File format {file_format} not supported."
@@ -152,12 +158,15 @@ def load_and_preprocess_data(file_path):
         raw = mne.io.read_raw_brainvision(file_path, preload=True)
     
     # Apply preprocessing steps
+    raw.set_channel_types(channel_types)
+    mne.set_eeg_reference(settings['referencing'])
     raw.set_montage(
         mne.channels.make_standard_montage(settings['montage']), 
         on_missing='ignore'
         )
     raw.filter(
-        settings['l_freq'], settings['h_freq'], fir_design='firwin'
+        settings['l_freq'], settings['h_freq'], fir_design='firwin',
+        picks = ["eeg", "eog"]
         )
     raw.notch_filter(
         settings['notch_freq'], filter_length='auto', phase='zero'
