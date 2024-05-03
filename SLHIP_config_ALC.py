@@ -22,10 +22,10 @@ config_dict = {
         "montage": "standard_1020",
         "l_freq": 0.1,
         "h_freq": 100,
-        "notch_freq": 50,
+        "notch_freq": [50, 100],
         "f_resample" : 256,
         "channel_types" : {
-            'eog': ['VEOG','HEOG'], 'ecg' : ['ECG'], 'resp' : ['RESP']
+            'VEOG' : 'eog', 'HEOG' : 'eog', 'ECG' : 'ecg', 'RESP' : 'resp'
             }
       },
       "channel_interpolation": {
@@ -184,7 +184,7 @@ def load_and_preprocess_data(file_path):
     
     # Apply preprocessing steps
     raw.set_channel_types(channel_types)
-    mne.set_eeg_reference(settings['referencing'])
+    mne.set_eeg_reference(raw, settings['referencing'], copy = False)
     raw.set_montage(
         mne.channels.make_standard_montage(settings['montage']), 
         on_missing='ignore'

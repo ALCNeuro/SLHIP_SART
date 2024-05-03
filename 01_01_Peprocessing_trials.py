@@ -31,17 +31,20 @@ if os.path.exists(os.path.join(path_data, "reports"))==False:
 if os.path.exists(os.path.join(path_data, "intermediary"))==False:
     os.makedirs(os.path.join(path_data,"intermediary"))
     
-files = glob(os.path.join(path_data, '**' , '*SART*.vhdr'))
+files = glob(os.path.join(path_data, 'experiment', '**' , '*SART*.vhdr'))
 
 # %% Simplified version
 
 # Load raw data
-file_path = f'{path_data}/sub_HS_001/SLHIP_2024_02_02_HS_001_SART_AM.vhdr'
+file_path = files[0]
 sub_id = file_path.split('/sub_')[1][:6]
 
 raw = cfg.load_and_preprocess_data(file_path)
 
 # Handle events
+go_id=101
+nogo_id=100
+conditions=[str(go_id),str(nogo_id)]
 merge_dict = {
     101 : [65,66,68,69,70,71,72,72],
     100 : [67]
@@ -50,7 +53,23 @@ events, event_id = cfg.handle_events(raw, merge_dict=merge_dict)
 stim_events = mne.pick_events(events, include=[101,100])
 
 # Create epochs
-epochs = cfg.create_epochs(raw, stim_events, event_id = [101, 100])
+flat_criteria = dict(eeg=1e-6)
+threshold = 150
+epochs = mne.Epochs(
+    raw, 
+    stim_events, 
+    event_id = [101, 100], 
+    tmin = -.2,
+    tmax = 1.2,
+    baseline = None,
+    preload = True,
+    flat = flat_criteria,
+    reject=dict(eeg=threshold),
+    event_repeated = 'merge'
+    )
+
+evoked_go  = epochs[str(go_id)].average()
+evoked_nogo = epochs[str(nogo_id)].average()
 
 # Ica & ica label
 ica, epochs_clean = cfg.ICA_auto(
