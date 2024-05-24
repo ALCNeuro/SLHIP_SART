@@ -26,7 +26,8 @@ config_dict = {
         "f_resample" : 256,
         "channel_types" : {
             'VEOG' : 'eog', 'HEOG' : 'eog', 'ECG' : 'ecg', 'RESP' : 'resp'
-            }
+            },
+        "n_jobs" : -1
       },
       "channel_interpolation": {
         "method": "automatic"
@@ -34,7 +35,6 @@ config_dict = {
       "ica": {
         "n_components": 15,
         "l_freq": 1.0,
-        "iclabel_threshold": 0.7
       }
     }
 
@@ -152,17 +152,17 @@ import mne
 
 def load_and_preprocess_data(file_path):
     """
-    Load a raw file from a path, and minimally preprocess it based on the 
-    settings in this script (config)
+    Load and minimally preprocess raw EEG data based on the settings in this script (config).
+
     Parameters
     ----------
     file_path : str
-        Path to the data_file.
+        Path to the data file.
 
     Returns
     -------
     raw : mne.io.Raw
-        Minimally processed Raw from the path.
+        Minimally processed Raw object from the path.
     """
     # Load configuration
     
@@ -190,11 +190,17 @@ def load_and_preprocess_data(file_path):
         on_missing='ignore'
         )
     raw.filter(
-        settings['l_freq'], settings['h_freq'], fir_design='firwin',
-        picks = ["eeg", "eog"]
+        settings['l_freq'], 
+        settings['h_freq'], 
+        fir_design='firwin',
+        picks = ["eeg", "eog"],
+        n_jobs = settings["n_jobs"]
         )
     raw.notch_filter(
-        settings['notch_freq'], filter_length='auto', phase='zero'
+        settings['notch_freq'], 
+        filter_length='auto', 
+        phase='zero', 
+        n_jobs = settings["n_jobs"]
         )
     raw.resample(settings['f_resample'])
     
@@ -204,13 +210,13 @@ def load_and_preprocess_data(file_path):
 def handle_events(raw, merge_dict=None):
     """
     Extract and handle events from raw EEG data.
-    
+
     Parameters
     ----------
     raw : mne.io.Raw
         The preprocessed raw data.
     merge_dict : dict, optional
-        dictionary with keys as new event IDs and values as lists of event IDs to be merged. 
+        Dictionary with keys as new event IDs and values as lists of event IDs to be merged. 
         The default is None.
 
     Returns
@@ -218,7 +224,7 @@ def handle_events(raw, merge_dict=None):
     events : numpy.ndarray
         The events array after handling.
     event_id : dict
-        the event dictionary after handling.
+        The event dictionary after handling.
 
     """
 
@@ -239,73 +245,100 @@ def handle_events(raw, merge_dict=None):
     return events, event_id
 
 def automatic_ica(
-        raw, 
+        eeg_data, 
         sub_id, 
         output_dir, 
         n_components=15, 
         l_freq=1.0, 
-        eog_ch=None, 
+        v_eog_ch=None, 
+        h_eog_ch=None, 
         ecg_ch=None, 
-        iclabel_threshold=0.7
+        icalabel=False
         ):
     """
-
+    Perform ICA on EEG data and automatically exclude artifacts.
+ 
     Parameters
     ----------
-    raw : mne.io.raw
-        Instance of Raw..
+    eeg_data : mne.io.Raw or mne.Epochs
+        Instance of Raw or Epochs containing the EEG data.
     sub_id : str
-        Subject identifier..
+        Subject identifier.
     output_dir : str
-        Directory to save the outputs.TION.
+        Directory to save the ICA outputs.
     n_components : int, optional
         Number of components for ICA. The default is 15.
     l_freq : float, optional
-        High-pass filter cutoff before ICA. The default is 1.0.
-    eog_ch : str, optional
-        EOG channel name(s) for artifact detection.. The default is None.
+        High-pass filter cutoff frequency before ICA. The default is 1.0.
+    v_eog_ch : str, optional
+        Vertical EOG channel name for artifact detection. The default is None.
+    h_eog_ch : str, optional
+        Horizontal EOG channel name for artifact detection. The default is None.
     ecg_ch : str, optional
-        CG channel name for artifact detection.. The default is None.
-    iclabel_threshold : float, optional
-        Threshold for excluding components based on ICLabel classification. 
-        The default is 0.7.
-
+        ECG channel name for artifact detection. The default is None.
+    icalabel : bool, optional
+        Whether to use ICLabel for further classification and exclusion of components. 
+        The default is False.
+ 
     Returns
     -------
     ica : mne.preprocessing.ICA
-        Saved ICA fitted on a copy of raw, high_pass filtered.
-
+        ICA object fitted on the EEG data.
     """
     import os
     # import mne
     from mne.preprocessing import ICA
     from mne_icalabel import label_components
     # Preprocess: High-pass filter
-    filt_raw = raw.copy().filter(l_freq=l_freq, h_freq=None)
+    assert type(eeg_data) in [mne.io.brainvision.brainvision.RawBrainVision, mne.epochs.Epochs], "The class of the eeg_data is not supported..."
+    filt_data = eeg_data.copy().filter(
+        l_freq=l_freq, h_freq=None, n_jobs = -1
+        )
 
     # Fit ICA
-    ica = ICA(n_components=n_components, random_state=97)
-    ica.fit(filt_raw)
+    
+    ica = ICA(
+        n_components=n_components, 
+        random_state=97,
+        method='infomax', 
+        fit_params=dict(extended=True)
+        )
+    ica.fit(filt_data)
 
     # Automatic EOG/ECG artifact detection and labeling with ICLabel
-    if eog_ch:
-        ica.exclude.extend(ica.find_bads_eog(filt_raw, ch_name=eog_ch)[0])
+    if h_eog_ch:
+        _, weights_heog=ica.find_bads_eog(filt_data, ch_name = 'HEOG')
+        bads_heog = [i for i, weight in enumerate(weights_heog)
+                    if weight > weights_heog.mean()+3*weights_heog.std()]
+        for i in bads_heog:
+            ica.exclude.append(i)
+    if v_eog_ch:
+        _, weights_veog=ica.find_bads_eog(filt_data, ch_name = 'VEOG')
+        bads_veog = [i for i, weight in enumerate(weights_veog)
+                    if weight > weights_veog.mean()+1*weights_veog.std()]
+        for i in bads_veog:
+            ica.exclude.append(i)
     if ecg_ch:
-        ica.exclude.extend(ica.find_bads_ecg(filt_raw, ch_name=ecg_ch)[0])
-
+        _, weights_ecg=ica.find_bads_ecg(filt_data, "ECG")
+        bads_ecg = [i for i, weight in enumerate(weights_ecg)
+                    if weight > weights_ecg.mean()+4*weights_ecg.std()
+                    and weight > .1]
+        for i in bads_ecg:
+            ica.exclude.append(i)
+    
+    if icalabel or not any([h_eog_ch, v_eog_ch, ecg_ch]):
     # ICLabel for further classification and exclusion
-    ica_labels = label_components(filt_raw, ica, method='iclabel')
-    for idx, (label, score) in enumerate(zip(ica_labels['labels'], ica_labels['scores'])):
-        if label not in ['brain', 'other'] and score > iclabel_threshold:
-            ica.exclude.append(idx)
-
-    # Apply ICA
-    ica.apply(filt_raw)
+        ica_labels = label_components(filt_data, ica, method='iclabel')
+        for idx, (label, score) in enumerate(
+                zip(ica_labels['labels'], ica_labels['y_pred_proba'])):
+            if label not in ['brain', 'other']:
+                ica.exclude.append(idx)
 
     # Save ICA object and exclusion info
-    ica.save(os.path.join(output_dir, f'{sub_id}-ica.fif'))
-    with open(os.path.join(output_dir, f'{sub_id}-ica-exclude.txt'), 'w') as f:
-        f.write('\n'.join(map(str, ica.exclude)))
+    if output_dir : 
+        ica.save(os.path.join(output_dir, f'{sub_id}-ica.fif'), overwrite = True)
+        with open(os.path.join(output_dir, f'{sub_id}-ica-exclude.txt'), 'w') as f:
+            f.write('\n'.join(map(str, ica.exclude)))
     return ica
 
 def generate_flexible_report(
