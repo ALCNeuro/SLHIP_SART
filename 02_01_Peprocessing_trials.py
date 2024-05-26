@@ -38,6 +38,10 @@ from glob import glob
 from autoreject import AutoReject
 import SLHIP_config_ALC as cfg 
 import matplotlib.pyplot as plt
+import warnings
+
+import matplotlib
+matplotlib.use('Agg')
 
 #### Paths
 if 'arthur' in os.getcwd():
@@ -117,6 +121,14 @@ ica_dic = dict(
     iclabel_threshold=0.7
     )
 
+# Function to check if a set of three events is complete
+def is_complete_set(probe_set):
+    return all(event[2] in ms_dic 
+               or event[2] in vol_dic 
+               or event[2] in sleepi_dic 
+               for event in probe_set)
+
+
 # %% Simplified version
 
 report_Event = mne.Report(title='Event')
@@ -126,7 +138,10 @@ report_ICA = mne.Report(title='ICA')
 
 for i, file_path in enumerate(files) :
     #### [1] Import Data and Minimally Process it
-    sub_id = f"{file_path.split('/sub_')[1][:6]}_{file_path[-7:-5]}"
+    sub_id = f"{file_path.split('/sub_')[1][:6]}{file_path.split('SART')[1][:3]}"
+    
+    if "HS_007" in sub_id :
+        continue
     
     print(f"...Processing {sub_id}, file {i+1} / {len(files)}...")
     
@@ -316,52 +331,101 @@ for i, file_path in enumerate(files) :
     del evoked_clean_perCond
     
     #### [7] SART Probes
-    probes = events[
-        np.isin(events[:, 2], [177, 178, 179, 180, 181, 182, 183, 184, 185])
-        ]
-    ms_probes = np.stack(
-        [event for i, event in enumerate(events[events[:, 2] == 128]) if not i%3])
-    ms_answer = np.array(
-        [ms_dic[event[2]] for i, event in enumerate(probes) if not i%3]
-        )
-    vol_answer = np.array(
-        [vol_dic[event[2]] for i, event in enumerate(probes) if i%3 == 1]
-        )
-    sleepi_answer = np.array(
-        [sleepi_dic[event[2]] for i, event in enumerate(probes) if i%3 == 2]
-        )
+    # probes = events[
+    #     np.isin(events[:, 2], [177, 178, 179, 180, 181, 182, 183, 184, 185])
+    #     ]
+    # ms_probes = np.stack(
+    #     [event for i, event in enumerate(events[events[:, 2] == 128]) if not i%3])
     
-    ms_metadatadic = {
-        "sub_id" : [sub_id for i in range(ms_probes.shape[0])], 
-        "subtype" : [subtype for i in range(ms_probes.shape[0])], 
-        "nblock" : list(np.repeat([0, 1, 2, 3], 10)), 
-        "nprobe" : [i%10 for i in range(ms_probes.shape[0])], 
-        "mindstate" : list(ms_answer), 
-        "voluntary" : list(vol_answer), 
-        "sleepiness" : list(sleepi_answer)
-        }
+    # # Initialize a list for storing complete probe sets
+    # complete_probes = []
+    
+    # # Iterate through probes in sets of three
+    # for i in range(0, len(probes), 3):
+    #     probe_set = probes[i:i+3]
+    #     if len(probe_set) < 3 or not is_complete_set(probe_set):
+    #         warnings.warn(f"Incomplete or missing probe set at index {i}")
+    #         continue
+    #     complete_probes.extend(probe_set)
+    
+    # ms_answer = np.array(
+    #     [ms_dic[event[2]] for i, event in enumerate(complete_probes) 
+    #      if not i % 3])
+    # vol_answer = np.array(
+    #     [vol_dic[event[2]] for i, event in enumerate(complete_probes) 
+    #      if i % 3 == 1])
+    # sleepi_answer = np.array(
+    #     [sleepi_dic[event[2]] for i, event in enumerate(complete_probes) 
+    #      if i % 3 == 2])
+    
+    # # Initialize lists for metadata
+    # ms_answer = []
+    # vol_answer = []
+    # sleepi_answer = []
+    
+    # # Iterate through probes in sets of three
+    # for i in range(0, len(probes), 3):
+    #     probe_set = probes[i:i+3]
+    #     if len(probe_set) < 3 or not is_complete_set(probe_set):
+    #         warnings.warn(f"Incomplete or missing probe set at index {i}")
+    #         continue
+        
+    #     ms_event, vol_event, sleepi_event = probe_set
+        
+    #     if ms_event[2] in ms_dic:
+    #         ms_answer.append(ms_dic[ms_event[2]])
+    #     else:
+    #         ms_answer.append(None)
+    #         warnings.warn(f"Mindstate event ID {ms_event[2]} not found in ms_dic.")
+        
+    #     if vol_event[2] in vol_dic:
+    #         vol_answer.append(vol_dic[vol_event[2]])
+    #     else:
+    #         vol_answer.append(None)
+    #         warnings.warn(f"Voluntary event ID {vol_event[2]} not found in vol_dic.")
+        
+    #     if sleepi_event[2] in sleepi_dic:
+    #         sleepi_answer.append(sleepi_dic[sleepi_event[2]])
+    #     else:
+    #         sleepi_answer.append(None)
+    #         warnings.warn(f"Sleepiness event ID {sleepi_event[2]} not found in sleepi_dic.")
+    
+    # # Convert lists to numpy arrays
+    # ms_answer = np.array(ms_answer)
+    # vol_answer = np.array(vol_answer)
+    # sleepi_answer = np.array(sleepi_answer)
+    
+    # ms_metadatadic = {
+    #     "sub_id" : [sub_id for i in range(ms_probes.shape[0])], 
+    #     "subtype" : [subtype for i in range(ms_probes.shape[0])], 
+    #     "nblock" : list(np.repeat([0, 1, 2, 3], 10)), 
+    #     "nprobe" : [i%10 for i in range(ms_probes.shape[0])], 
+    #     "mindstate" : list(ms_answer), 
+    #     "voluntary" : list(vol_answer), 
+    #     "sleepiness" : list(sleepi_answer)
+    #     }
                 
-    probe_metadata = pd.DataFrame.from_dict(ms_metadatadic)
+    # probe_metadata = pd.DataFrame.from_dict(ms_metadatadic)
     
-    raw_ica = ica.apply(raw.copy())
+    # raw_ica = ica.apply(raw.copy())
     
-    epochs_probes = mne.Epochs(
-        raw_ica, 
-        ms_probes, 
-        tmin = -10,
-        tmax = 0,
-        baseline = None,
-        preload = True,
-        flat = flat_criteria,
-        reject=dict(eeg=threshold),
-        event_repeated = 'merge'
-        )
-    good_epochs = [True if not log else False 
-                  for i, log in enumerate(epochs_probes.drop_log)]
-    epochs_probes.metadata = probe_metadata[good_epochs]
-    epochs_probes.save(this_probes_savename, overwrite = True)
+    # epochs_probes = mne.Epochs(
+    #     raw_ica, 
+    #     ms_probes, 
+    #     tmin = -10,
+    #     tmax = 0,
+    #     baseline = None,
+    #     preload = True,
+    #     flat = flat_criteria,
+    #     reject=dict(eeg=threshold),
+    #     event_repeated = 'merge'
+    #     )
+    # good_epochs = [True if not log else False 
+    #               for i, log in enumerate(epochs_probes.drop_log)]
+    # epochs_probes.metadata = probe_metadata[good_epochs]
+    # epochs_probes.save(this_probes_savename, overwrite = True)
 
-    plt.close('all')    
+    # plt.close('all')    
 
 report_Event.save(
     os.path.join(path_data,"reports","Events.html"), 
