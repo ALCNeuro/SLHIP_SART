@@ -235,12 +235,43 @@ for sub_id in sub_ids :
 
 # Convert lists to DataFrame and save to CSV
 df = pd.DataFrame(data_dict)
-# df.to_csv(f"{figpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
+df.to_csv(f"{figpath}/VDF_dfBEHAV_SLHIP_Allblock_Probe.csv")
 
 # %% smf
 
-sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS')]
-sub_df.mindstate.replace('FORGOT', 'MB', inplace = True)
+# Investigating and handling any NaN values in the relevant columns to ensure smooth analysis
+data = df.dropna(subset=['miss', 'sleepiness', 'mindstate', 'subtype', 'sub_id'])
+
+# Re-attempting the linear mixed model fitting
+model = smf.mixedlm("miss ~ sleepiness * subtype", data, groups=data["sub_id"], missing = 'omit')
+result = model.fit()
+
+# Display the summary of the model
+model_summary = result.summary()
+model_summary
+
+# %%
+
+# Scatter plot for each subtype with trend line
+sns.lmplot(
+    x='sleepiness', 
+    y='miss', 
+    hue='subtype', 
+    data=data, 
+    aspect=2, 
+    height=6)
+
+plt.title('Relationship between Misses and Sleepiness by Subtype')
+plt.xlabel('Sleepiness')
+plt.ylabel('Number of Misses')
+plt.legend(loc = 'upper right')
+plt.tight_layout()
+plt.show()
+
+# %% 
+
+sub_df = df.loc[(df.mindstate != 'MISS')]
+# sub_df.mindstate.replace('FORGOT', 'MB', inplace = True)
 
 model_formula = 'false_alarms ~ subtype*daytime'
 model = smf.mixedlm(model_formula, sub_df, groups=sub_df['sub_id'], missing = 'omit')
@@ -254,15 +285,15 @@ mindstate_counts = sub_df.groupby(['subtype', 'mindstate']).size().unstack(fill_
 mindstate_percentages = mindstate_counts.div(mindstate_counts.sum(axis=1), axis=0) * 100
 
 # Create radar plot for each subtype
-subtypes = ['HS', 'N1']
+subtypes = ['HS', 'N1', 'HI']
 kind_thought = list(sub_df.mindstate.unique())
-full_thought = ["ON", "MW Internal", "Distracted", "MB", "Hallucination/Illusion"]
+full_thought = ["ON", "MW Internal", "Distracted", "MB", "Forgot", "Hallucination/Illusion"]
 # kind_thought.remove('MISS')  # Remove 'MISS' from the radar plot
 
 max_value = mindstate_percentages.max().max()
 
 # Radar plot settings
-colors = {'HS': '#51b7ff', 'N1': '#a4abff'}
+colors = {'HS': '#51b7ff', 'N1': '#a4abff', 'HI' : '#ffa751'}
 fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(10, 10))
 
 for subtype in subtypes:
@@ -276,10 +307,12 @@ for subtype in subtypes:
     ax.plot(angles, values, color=colors[subtype], linewidth=2, label=subtype)
 
 ax.set_xticks(angles[:-1])
-ax.set_xticklabels(full_thought)
+ax.set_xticklabels(full_thought, fontsize = 15)
 ax.set_ylim(0, max_value)
 ax.set_yticks(np.linspace(0, max_value, 5))
-ax.set_yticklabels([f'{int(tick)}%' for tick in np.linspace(0, max_value, 5)], color='grey')
+ax.set_yticklabels(
+    [f'{int(tick)}%' for tick in np.linspace(0, max_value, 5)], 
+    color='grey')
 ax.yaxis.set_ticks_position('left')
 ax.set_rlabel_position(0)  # Move radial labels to the top
 

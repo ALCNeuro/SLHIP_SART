@@ -76,10 +76,17 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import statsmodels.formula.api as smf
+from highlight_text import fig_text
+from matplotlib.font_manager import FontProperties
 from scipy.io import loadmat
 from glob import glob
 
-import statsmodels.formula.api as smf
+# font
+personal_path = '/Users/arthurlecoz/Library/Mobile Documents/com~apple~CloudDocs/Desktop/A_Thesis/Others/Fonts/aptos-font'
+font_path = personal_path + '/aptos-light.ttf'
+font = FontProperties(fname=font_path)
+bold_font = FontProperties(fname=personal_path + '/aptos-bold.ttf')
 
 rootpath = cfg.rootpath
 rawpath = os.path.join(rootpath, "00_Raw")
@@ -131,16 +138,6 @@ def filter_probe(mat, nblock):
     """ Filter data by nblock and further by 'rt' conditions. """
     return mat.loc[(mat["nblock"] == nblock)]
 
-# def get_interprobe_mat(block_mat, ntrial_list, current_trial):
-#     """ Get data slices between ntrial intervals. """
-#     if current_trial == 0:
-#         return block_mat[block_mat['ntrial'] < ntrial_list[current_trial]]
-#     else:
-#         return block_mat[
-#             (block_mat['ntrial'] > ntrial_list[current_trial-1]) 
-#             & (block_mat['ntrial'] < ntrial_list[current_trial])
-#             ]
-
 def append_to_lists(list_dict, **kwargs):
     """ Append multiple values to respective lists efficiently. """
     for key, value in kwargs.items():
@@ -164,11 +161,6 @@ def calculate_behavioral_metrics(interprobe_mat):
 
 
 # %% 
-
-# per_ms = {mindstate : 
-#           probe.mindstate[probe.mindstate == mindstate
-#                           ].shape[0]/probe.mindstate.shape[0] 
-#           for mindstate in probe.mindstate.unique()}
 
 columns = ['sub_id', 'subtype', 'nblock', 'rt_go', 'rt_nogo', 'hits', 
            'miss', 'correct_rejections', 'false_alarms', 'mindstate', 
@@ -252,7 +244,7 @@ model = smf.mixedlm(model_formula, sub_df, groups=sub_df['sub_id'], missing = 'o
 model_result = model.fit()
 model_result.summary()
 
-# %% RadarPlot for percentage of mindstates per subtype
+# %% RadarPlot % MS / Subtype
 
 # Calculate percentages
 mindstate_counts = sub_df.groupby(['subtype', 'mindstate']).size().unstack(fill_value=0)
@@ -261,15 +253,16 @@ mindstate_percentages = mindstate_counts.div(mindstate_counts.sum(axis=1), axis=
 # Create radar plot for each subtype
 subtypes = ['HS', 'N1']
 kind_thought = list(sub_df.mindstate.unique())
-full_thought = ["ON", "MW Internal", "Distracted", "MB", "Hallucination/Illusion"]
+full_thought = ["ON", "MW Internal", "Distracted", "MB", "Forgot", "Hallucination/Illusion"]
 # kind_thought.remove('MISS')  # Remove 'MISS' from the radar plot
 
 max_value = mindstate_percentages.max().max()
 
 # Radar plot settings
 colors = {'HS': '#51b7ff', 'N1': '#a4abff'}
-fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(10, 10))
 
+fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(12, 8), dpi=150)
+# plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05, weight='bold', loc='left')
 for subtype in subtypes:
     values = mindstate_percentages.loc[subtype, kind_thought].values.tolist()
     values += values[:1]  # to close the radar plot
@@ -281,10 +274,13 @@ for subtype in subtypes:
     ax.plot(angles, values, color=colors[subtype], linewidth=2, label=subtype)
 
 ax.set_xticks(angles[:-1])
-ax.set_xticklabels(full_thought)
+ax.set_xticklabels(full_thought, font = font)
 ax.set_ylim(0, max_value)
 ax.set_yticks(np.linspace(0, max_value, 5))
-ax.set_yticklabels([f'{int(tick)}%' for tick in np.linspace(0, max_value, 5)], color='grey')
+ax.set_yticklabels(
+    [f'{int(tick)}%' for tick in np.linspace(0, max_value, 5)], 
+    color='grey',
+    font = font)
 ax.yaxis.set_ticks_position('left')
 ax.set_rlabel_position(0)  # Move radial labels to the top
 
@@ -297,6 +293,257 @@ ax.legend()
 # Remove the outer circle
 ax.spines['polar'].set_visible(False)
 
-plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05)
+title = 'Percentage of <Mindstates> by <Subtype>'
+fig_text(
+   0.1, .95,
+   title,
+   fontsize=15,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+   ],
+   fig=fig
+)
+fig.tight_layout()
+# plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05, weight='bold')
 plt.savefig(f"{figpath}/radar_plot_mindstates_by_subtype.png", dpi=500)
 plt.show()
+
+# %% Sleepiness
+
+subtypes = ["HS", "N1"]
+colors = ['#51b7ff','#a4abff']
+
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (12, 4))
+
+sns.violinplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'sleepiness', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    fill= False, 
+    inner = None,
+    cut = .5,
+    ax = ax,
+    palette = colors,
+    legend = None,
+    split = True,
+    gap = .05,
+    )
+
+sns.boxplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'sleepiness', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    palette = colors,
+    fill = False,
+    legend = None,
+    gap = .15,
+    width = .2,
+    showfliers = False
+    )
+
+sns.stripplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'sleepiness', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    ax = ax,
+    palette = colors,
+    legend = None,
+    jitter = True
+    )
+
+ax.set_yticks(
+    ticks = np.arange(1, 10, 1), 
+    labels = np.arange(1, 10, 1), 
+    font = font, 
+    size = 10)
+ax.set_ylabel("Sleepiness", font = bold_font, size = 15)
+ax.set_xticks(
+    ticks = np.arange(0, 6, 1), 
+    labels = ["Focused", "Mind Wandering", "Mind Blanking", 
+              "Hallucination/Illusion", "Distracted", "Forgot"], 
+    size = 20,
+    font = font
+    )
+ax.set_xlabel("Mindstate", font = bold_font, size = 15)
+title = """
+Subjective <Sleepiness> rating according to the <Mindstates>, by <Subtype> : [ <CTL>, <NT1> ]
+"""
+fig_text(
+   0.07, .94,
+   title,
+   fontsize=15,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+      {'font': bold_font},
+      {'color': colors[0], 'font': bold_font},
+      {'color': colors[1], 'font': bold_font}
+   ],
+   fig=fig
+)
+fig.tight_layout(pad = .5)
+
+# %% Misses & False Alarms
+
+subtypes = ["HS", "N1"]
+colors = ['#51b7ff','#a4abff']
+
+fig, ax = plt.subplots(nrows = 2, ncols = 1, figsize = (12, 7), sharex = True)
+
+sns.boxplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'miss', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    palette = colors,
+    fill = False,
+    legend = None,
+    gap = .15,
+    # width = .2,
+    showfliers = False,
+    ax = ax[0]
+    )
+
+sns.stripplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'miss', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    ax = ax[0],
+    palette = colors,
+    legend = None,
+    )
+
+ax[0].set_yticks(
+    ticks = np.arange(0, 120, 20), 
+    labels =  np.arange(0, 120, 20), 
+    font = font, 
+    size = 10)
+ax[0].set_ylabel("Misses (%)", font = bold_font, size = 15)
+ax[0].set_xticks(
+    ticks = np.arange(0, 6, 1), 
+    labels = ["Focused", "Mind Wandering", "Mind Blanking", 
+              "Hallucination/Illusion", "Distracted", "Forgot"], 
+    size = 20,
+    font = font
+    )
+
+sns.violinplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'false_alarms', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    fill= False, 
+    inner = None,
+    cut = .5,
+    ax = ax[1],
+    palette = colors,
+    legend = None,
+    split = True,
+    gap = .05,
+    )
+sns.boxplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'false_alarms', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    palette = colors,
+    fill = False,
+    legend = None,
+    gap = .15,
+    width = .2,
+    showfliers = False
+    )
+
+sns.stripplot(
+    data = sub_df,
+    x = 'mindstate', 
+    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
+    y = 'false_alarms', 
+    hue = 'subtype', 
+    hue_order = ['HS', 'N1'], 
+    dodge = True,
+    ax = ax[1],
+    palette = colors,
+    legend = None,
+    )
+
+ax[1].set_yticks(
+    ticks = np.arange(0, 150, 50), 
+    labels =  np.arange(0, 150, 50), 
+    font = font, 
+    size = 10)
+ax[1].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
+ax[1].set_xticks(
+    ticks = np.arange(0, 6, 1), 
+    labels = ["Focused", "Mind Wandering", "Mind Blanking", 
+              "Hallucination/Illusion", "Distracted", "Forgot"], 
+    size = 20,
+    font = font
+    )
+ax[1].set_xlabel("Mindstate", font = bold_font, size = 15)
+sns.despine(fig)
+
+title = """
+<Misses> and <False Alarms> according to the <Mindstates> and <Subtype> : [ <CTL>, <NT1> ]
+"""
+fig_text(
+   0.07, .94,
+   title,
+   fontsize=15,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+      {'font': bold_font},
+      {'font': bold_font},
+      {'color': colors[0], 'font': bold_font},
+      {'color': colors[1], 'font': bold_font}
+   ],
+   fig=fig
+)
+
+# %% 
+
+plt.figure()
+sns.kdeplot(
+    data = sub_df, 
+    x = "sleepiness", 
+    y = "false_alarms", 
+    hue = "subtype", 
+    fill = True, 
+    palette = colors, 
+    levels = 4,
+    font = font,
+    alpha = 0.5
+    )

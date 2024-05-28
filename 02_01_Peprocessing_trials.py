@@ -62,7 +62,7 @@ if os.path.exists(os.path.join(path_data, "intermediary"))==False:
 # Paths to the EEG files, here brainvision files
 files = glob(os.path.join(path_data, 'experiment', '**' , '*SART*.vhdr'))
 # amount of cpu used for functions with multiprocessing :
-n_jobs = -1
+n_jobs = 4
 
 # Events handling to simplify script
 ms_dic = {
@@ -153,6 +153,11 @@ for i, file_path in enumerate(files) :
     this_probes_savename = os.path.join(
         path_preproc, "epochs_probes", f"{sub_id}_epo.fif"
         )
+    
+    if (os.path.exists(this_trialepochs_savename) and 
+        os.path.exists(this_probes_savename)):
+        print(f"...{sub_id}, file {i+1} / {len(files)} Already processed, skipping...")
+        continue
     
     raw = cfg.load_and_preprocess_data(file_path)
     sf = raw.info['sfreq']
@@ -428,22 +433,22 @@ for i, file_path in enumerate(files) :
     # plt.close('all')    
 
 report_Event.save(
-    os.path.join(path_data,"reports","Events.html"), 
+    os.path.join(path_data,"reports","Events_2.html"), 
     overwrite=True, 
     open_browser=False
     )
 report_AR.save(
-    os.path.join(path_data,"reports","AutoRej.html"), 
+    os.path.join(path_data,"reports","AutoRej_2.html"), 
     overwrite=True, 
     open_browser=False
     )
 report_ERP.save(
-    os.path.join(path_data,"reports","ERP.html"), 
+    os.path.join(path_data,"reports","ERP_2.html"), 
     overwrite=True, 
     open_browser=False
     )
 report_ICA.save(
-    os.path.join(path_data,"reports","ICA.html"), 
+    os.path.join(path_data,"reports","ICA_2.html"), 
     overwrite=True,
     open_browser=False
     )
