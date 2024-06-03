@@ -14,6 +14,8 @@ rootpath = "/Volumes/DDE_ALC/PhD/SLHIP"
 
 rawDataPath = rootpath + "/00_Raw"
 cleanDataPath = rootpath + "/01_Preproc"
+powerPath = rootpath + "/03_Power"
+wavesPath = rootpath + "/04_Waves"
 
 config_dict = {
       "file_format": "BrainVision",

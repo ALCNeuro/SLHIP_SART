@@ -77,6 +77,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.formula.api as smf
+from statsmodels.miscmodels.ordinal_model import OrderedModel
 from highlight_text import fig_text
 from matplotlib.font_manager import FontProperties
 from scipy.io import loadmat
@@ -237,7 +238,7 @@ df.to_csv(f"{figpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
 # %% smf
 
 sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS')]
-sub_df.mindstate.replace('FORGOT', 'MB', inplace = True)
+# sub_df.mindstate.replace('FORGOT', 'MB', inplace = True)
 
 model_formula = 'false_alarms ~ subtype*daytime'
 model = smf.mixedlm(model_formula, sub_df, groups=sub_df['sub_id'], missing = 'omit')
@@ -253,7 +254,7 @@ mindstate_percentages = mindstate_counts.div(mindstate_counts.sum(axis=1), axis=
 # Create radar plot for each subtype
 subtypes = ['HS', 'N1']
 kind_thought = list(sub_df.mindstate.unique())
-full_thought = ["ON", "MW Internal", "Distracted", "MB", "Forgot", "Hallucination/Illusion"]
+full_thought = ["ON", "MW Internal", "Distracted", "MB", "Forgor", "Hallucination/Illusion"]
 # kind_thought.remove('MISS')  # Remove 'MISS' from the radar plot
 
 max_value = mindstate_percentages.max().max()
@@ -400,41 +401,57 @@ fig_text(
 )
 fig.tight_layout(pad = .5)
 
+# %% LME Sleepiness
+
+sub_df['sleepiness'] = pd.Categorical(sub_df['sleepiness'], ordered=True)
+
+model_formula = 'sleepiness ~ C(mindstate, Treatment("ON"))'
+model = OrderedModel.from_formula(model_formula, data=sub_df, groups = sub_df['sub_id'], distr='logit')
+result = model.fit(method='bfgs')
+
+print(result.summary())
+
 # %% Misses & False Alarms
 
-subtypes = ["HS", "N1"]
+data = sub_df
+x = 'mindstate'
+order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT']
+hue = 'subtype'
+hue_order = ['HS', 'N1']
 colors = ['#51b7ff','#a4abff']
 
-fig, ax = plt.subplots(nrows = 2, ncols = 1, figsize = (12, 7), sharex = True)
+fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize = (7, 12), sharex = True)
 
-sns.boxplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'miss', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
-    dodge = True,
+y = 'miss'
+sns.pointplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .15,
     palette = colors,
-    fill = False,
     legend = None,
-    gap = .15,
-    # width = .2,
-    showfliers = False,
-    ax = ax[0]
+    ax = ax[0],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none"
     )
 
 sns.stripplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'miss', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order,  
     dodge = True,
     ax = ax[0],
     palette = colors,
     legend = None,
+    alpha = .1,
+    size = 3
     )
 
 ax[0].set_yticks(
@@ -443,78 +460,103 @@ ax[0].set_yticks(
     font = font, 
     size = 10)
 ax[0].set_ylabel("Misses (%)", font = bold_font, size = 15)
-ax[0].set_xticks(
-    ticks = np.arange(0, 6, 1), 
-    labels = ["Focused", "Mind Wandering", "Mind Blanking", 
-              "Hallucination/Illusion", "Distracted", "Forgot"], 
-    size = 20,
-    font = font
-    )
 
-sns.violinplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'false_alarms', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
-    dodge = True,
-    fill= False, 
-    inner = None,
-    cut = .5,
+
+y = "false_alarms"
+sns.pointplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .15,
+    palette = colors,
+    # fill = False,
+    legend = None,
+    # gap = .15,
+    # width = .2,
+    # showfliers = False,
     ax = ax[1],
-    palette = colors,
-    legend = None,
-    split = True,
-    gap = .05,
-    )
-sns.boxplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'false_alarms', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
-    dodge = True,
-    palette = colors,
-    fill = False,
-    legend = None,
-    gap = .15,
-    width = .2,
-    showfliers = False
+    errorbar = "se",
+    capsize = .1,
+    ls = "none"
     )
 
 sns.stripplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'false_alarms', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
     dodge = True,
     ax = ax[1],
     palette = colors,
     legend = None,
+    alpha = .1,
+    size = 3
     )
-
+ax[1].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
 ax[1].set_yticks(
     ticks = np.arange(0, 150, 50), 
     labels =  np.arange(0, 150, 50), 
     font = font, 
     size = 10)
-ax[1].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
-ax[1].set_xticks(
+
+y = 'rt_go'
+sns.pointplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .15,
+    palette = colors,
+    # fill = False,
+    legend = None,
+    # gap = .15,
+    # width = .2,
+    # showfliers = False,
+    ax = ax[2],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none"
+    )
+
+sns.stripplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[2],
+    palette = colors,
+    legend = None,
+    alpha = .1,
+    size = 3
+    )
+
+# ax[1].set_yticks(
+#     ticks = np.arange(0, 150, 50), 
+#     labels =  np.arange(0, 150, 50), 
+#     font = font, 
+#     size = 10)
+ax[2].set_ylabel("Reaction Time Go (ms)", font = bold_font, size = 15)
+ax[2].set_xticks(
     ticks = np.arange(0, 6, 1), 
-    labels = ["Focused", "Mind Wandering", "Mind Blanking", 
-              "Hallucination/Illusion", "Distracted", "Forgot"], 
+    labels = ["ON", "MW", "MB", "Hallu/Illu", "Distracted", "Forgot"], 
     size = 20,
     font = font
     )
-ax[1].set_xlabel("Mindstate", font = bold_font, size = 15)
+ax[2].set_xlabel("Mindstate", font = bold_font, size = 15)
 sns.despine(fig)
 
 title = """
-<Misses> and <False Alarms> according to the <Mindstates> and <Subtype> : [ <CTL>, <NT1> ]
+<Misses>, <False Alarms>, and <Reaction Time>\naccording to the <Mindstates> and <Subtype> : [ <CTL>, <NT1> ]
 """
 fig_text(
    0.07, .94,
@@ -523,6 +565,7 @@ fig_text(
    ha='left', va='center',
    color="k", font=font,
    highlight_textprops=[
+      {'font': bold_font},
       {'font': bold_font},
       {'font': bold_font},
       {'font': bold_font},
