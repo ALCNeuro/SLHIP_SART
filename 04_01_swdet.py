@@ -5,7 +5,7 @@ Created on Fri Jul 21
 
 @author: Arthur Le Coz
 
-06_SW_det.py
+04_01_swdet.py
 
 """
 

@@ -5,10 +5,8 @@ Created on Fri Jul 21
 
 @author: Arthur Le Coz
 
-06_SW_det.py
-
+04_02_compute_slowwaves.py
 """
-
 # %%% Paths & Packages
 
 import SLHIP_config_ALC as config
@@ -29,15 +27,13 @@ reports_path = os.path.join(wavesPath, "reports")
 figs_path = os.path.join(wavesPath, "figs")
 # epochs_files  = glob(os.path.join(cleanDataPath, "*epo.fif"))
 
-slope_range = [0.25, 2] # in uV/ms
+slope_range = [0.143, 2] # in uV/ms
 positive_amp = [75] # in uV
 amplitude_max = 150
 
 inspect = 0
 
 # %%% Script
-
-dfFeatureList = []
 
 for i_file, file in enumerate(allwaves_files) :
     df_aw = pd.read_csv(file) 
@@ -46,7 +42,8 @@ for i_file, file in enumerate(allwaves_files) :
     sub_id = file.split('all_waves/')[1].split('.')[0]
     subtype = sub_id[:2]
     
-    this_sw_df_savename = os.path.join(slowwaves_path, f"{sub_id}.csv")
+    this_sw_df_savename = os.path.join(slowwaves_path, f"slow_waves_{sub_id}.csv")
+    this_thresh_df_savename = os.path.join(slowwaves_path, f"thresh_{sub_id}.csv")
     
     epochs_observed = df_aw.tot_epochs.unique()[0]
     
@@ -114,10 +111,8 @@ for i_file, file in enumerate(allwaves_files) :
             ]
         )
     
-    df_clean["sw_threshold"] = [thresh_dic[chan] for chan in df_clean.channel]
+    df_thresh = pd.DataFrame.from_dict(thresh_dic, orient = 'index')
+    df_thresh.to_csv(this_thresh_df_savename)
     
     df_clean.to_csv(this_sw_df_savename)
         
-    
- 
-    
