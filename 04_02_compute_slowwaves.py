@@ -33,6 +33,8 @@ amplitude_max = 150
 
 inspect = 0
 
+sw_method = 'percentile' # gauss or percentile
+
 # %%% Script
 
 for i_file, file in enumerate(allwaves_files) :
@@ -61,46 +63,53 @@ for i_file, file in enumerate(allwaves_files) :
     thresh_dic = {}
     print(f"\n...Processing {sub_id}... Computing Thresholds")
     for i, chan in enumerate(df_sw.channel.unique()) :
-        temp_p2p = np.asarray(df_sw.PTP.loc[df_sw['channel'] == chan])
-        if len(temp_p2p) == 0 :
-            continue
-        params = exponnorm.fit(temp_p2p)
-        mu, sigma, lam = params
-        bins = np.arange(0, temp_p2p.max(), 0.1)
-        y = exponnorm.pdf(bins, mu, sigma, lam)
-        max_gaus = bins[np.where(y == max(y))][0] * 2
         
-        thresh_dic[chan] = max_gaus
-    
-        if inspect :
-            fig1 = plt.figure(f"GaussianFit_{sub_id}_{chan}")
-            plt.hist(
-                temp_p2p, bins = 100, density = True, 
-                alpha = 0.5, label = f"PTP_SW_{chan}",
-                # color = palette_bins[i]
-                )
-            plt.plot(bins, y, #color = palette_fit[i], 
-                      label = f"Ex-GaussFit_{chan}")
-            plt.axvline(
-                x = max_gaus, #color = palette_bins[i], 
-                label = f"Threshold_{chan}", ls = '--')
-            plt.xlabel('Values')
-            plt.ylabel('Density')
-            plt.title('Ex-Gaussian Fit')
-            plt.legend()
-            plt.show(block=False)
-            plt.close(fig1)
+        if sw_method == 'gauss' :
+            temp_p2p = np.asarray(df_sw.PTP.loc[df_sw['channel'] == chan])
+            if len(temp_p2p) == 0 :
+                continue
+            params = exponnorm.fit(temp_p2p)
+            mu, sigma, lam = params
+            bins = np.arange(0, temp_p2p.max(), 0.1)
+            y = exponnorm.pdf(bins, mu, sigma, lam)
+            max_gaus = bins[np.where(y == max(y))][0] * 2
+            
+            thresh_dic[chan] = max_gaus
         
-    if inspect :
-        report.add_figure(
-            fig=fig1,
-            title=f"Ex Gaussian Fit on PTP distrib at {chan}",
-            image_format="PNG"
-            )
-        report.save(
-            f"{reports_path}/PTP_report_{sub_id}.html", 
-            overwrite=True,
-            open_browser = False)  
+        #     if inspect :
+        #         fig1 = plt.figure(f"GaussianFit_{sub_id}_{chan}")
+        #         plt.hist(
+        #             temp_p2p, bins = 100, density = True, 
+        #             alpha = 0.5, label = f"PTP_SW_{chan}",
+        #             # color = palette_bins[i]
+        #             )
+        #         plt.plot(bins, y, #color = palette_fit[i], 
+        #                   label = f"Ex-GaussFit_{chan}")
+        #         plt.axvline(
+        #             x = max_gaus, #color = palette_bins[i], 
+        #             label = f"Threshold_{chan}", ls = '--')
+        #         plt.xlabel('Values')
+        #         plt.ylabel('Density')
+        #         plt.title('Ex-Gaussian Fit')
+        #         plt.legend()
+        #         plt.show(block=False)
+        #         plt.close(fig1)
+            
+        # if inspect :
+        #     report.add_figure(
+        #         fig=fig1,
+        #         title=f"Ex Gaussian Fit on PTP distrib at {chan}",
+        #         image_format="PNG"
+        #         )
+        #     report.save(
+        #         f"{reports_path}/PTP_report_{sub_id}.html", 
+        #         overwrite=True,
+        #         open_browser = False)  
+            
+            
+        elif sw_method == 'percentile' :
+            temp_p2p = np.asarray(df_sw.PTP.loc[df_sw['channel'] == chan])
+            thresh_dic[chan] = np.percentile(temp_p2p, 90)
           
     df_clean = pd.concat(
         [df_sw[

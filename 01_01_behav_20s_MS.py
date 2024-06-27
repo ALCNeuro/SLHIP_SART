@@ -151,12 +151,16 @@ def calculate_behavioral_metrics(interprobe_mat):
         interprobe_mat[interprobe_mat['digit'] == 3].iloc[-2:]
     ])
     go_trials = interprobe_mat_20s[interprobe_mat_20s['digit'] != 3]
+    go_corr = interprobe_mat_20s[
+        (interprobe_mat_20s['digit'] != 3) 
+        & (interprobe_mat_20s['corr_go'] == 1)
+        ]
     nogo_trials = interprobe_mat_20s[interprobe_mat_20s['digit'] == 3]
     hits = 100 * len(go_trials[go_trials['corr_go'] == 1]) / len(go_trials)
     miss = 100 * (1 - hits / 100)
     cr = 100 * len(nogo_trials[nogo_trials['corr_nogo'] == 1]) / len(nogo_trials)
     fa = 100 * (1 - cr / 100)
-    rtgo = go_trials['rt'].mean()
+    rtgo = go_corr['rt'].mean()
     rtnogo = nogo_trials['rt'].mean()
     return hits, miss, cr, fa, rtgo, rtnogo
 
@@ -262,7 +266,7 @@ max_value = mindstate_percentages.max().max()
 # Radar plot settings
 colors = {'HS': '#51b7ff', 'N1': '#a4abff'}
 
-fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(12, 8), dpi=150)
+fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(7, 7), dpi=150)
 # plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05, weight='bold', loc='left')
 for subtype in subtypes:
     values = mindstate_percentages.loc[subtype, kind_thought].values.tolist()
@@ -276,20 +280,26 @@ for subtype in subtypes:
 
 ax.set_xticks(angles[:-1])
 ax.set_xticklabels(full_thought, font = font)
-ax.set_ylim(0, max_value)
-ax.set_yticks(np.linspace(0, max_value, 5))
+ax.set_ylim(0, 100)
+ax.set_yticks(np.linspace(0, 100, 5))
 ax.set_yticklabels(
-    [f'{int(tick)}%' for tick in np.linspace(0, max_value, 5)], 
+    [f'{int(tick)}%' for tick in np.linspace(0, 100, 5)], 
     color='grey',
     font = font)
 ax.yaxis.set_ticks_position('left')
-ax.set_rlabel_position(0)  # Move radial labels to the top
+# ax.set_rlabel_position(0)  # Move radial labels to the top
 
 # Make grid lines more discrete
 ax.grid(color='grey', linestyle='-.', linewidth=0.5, alpha=0.5)
 
 # Add legend
-ax.legend()
+ax.legend(
+    title = "Subtype", 
+    frameon = False, 
+    bbox_to_anchor=(.65, .65, 0.5, 0.5), 
+    title_fontsize = 14, 
+    fontsize = 12
+    ) 
 
 # Remove the outer circle
 ax.spines['polar'].set_visible(False)
@@ -309,85 +319,217 @@ fig_text(
 )
 fig.tight_layout()
 # plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05, weight='bold')
-plt.savefig(f"{figpath}/radar_plot_mindstates_by_subtype.png", dpi=500)
+plt.savefig(f"{figpath}/radar_plot_mindstates_by_subtype.png", dpi=200)
 plt.show()
+
+# %% ready fig ms %
+
+subjectlist = []; mindstatelist  = []; subtypelist = []; percentagelist = [];
+
+for sub_id in sub_df.sub_id.unique() :    
+    this_df = sub_df.loc[sub_df['sub_id'] == sub_id]
+    for mindstate in ['ON', 'MW_I', 'MW_E', 'MW_H', 'MB', 'FORGOT'] :
+        subjectlist.append(sub_id)
+        subtypelist.append(sub_id.split('_')[1])
+        mindstatelist.append(mindstate)
+        percentagelist.append(
+            len(this_df.mindstate.loc[
+                (this_df['mindstate'] == mindstate)]
+                )/len(this_df.mindstate))
+
+df_mindstate = pd.DataFrame(
+    {
+     "sub_id" : subjectlist,
+     "subtype" : subtypelist,
+     "mindstate" : mindstatelist,
+     "percentage" : percentagelist,
+     }
+    )
+
+# %% fig ms %
+
+# palette = ['#51b7ff','#a4abff']
+palette = ['#565B69','#0070C0']
+data = df_mindstate
+y = 'percentage'
+x = "mindstate"
+order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
+hue = "subtype"
+hue_order = ['HS', 'N1']    
+         
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 12))
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    errorbar = 'se',
+    capsize = 0.05,
+    dodge = .15,
+    linestyle = 'none',
+    palette = palette,
+    )         
+# sns.violinplot(
+#     data = data, 
+#     x = x,
+#     y = y,
+#     hue = hue,
+#     order = order,
+#     hue_order = hue_order,
+#     fill = True,
+#     alpha = 0.2,
+#     dodge = True,
+#     linecolor = 'white',
+#     inner = None,
+#     legend = None,
+#     palette = palette,
+#     cut = .5
+#     )         
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    alpha = 0.5,
+    dodge = True,
+    legend = None,
+    palette = palette
+    )
+
+plt.legend(
+    title = "Subtype", 
+    frameon = False, 
+    bbox_to_anchor=(.5, .5, 0.5, 0.5), 
+    title_fontsize = 14, 
+    fontsize = 12
+    ) 
+
+ax.set_ylabel('Pourcentage %', size = 18, font = bold_font)
+ax.set_xlabel('Mindstate', size = 18, font = bold_font)
+ax.set_ylim(0, 1)
+ax.set_xticks(
+    ticks = np.arange(0, 5, 1), 
+    labels = ["ON", "MW", "MB", "HALLU", "FORGOT"],
+    font = font)
+ax.set_yticks(
+    ticks = np.arange(0, 1.2, .2), 
+    labels = np.arange(0, 120, 20), 
+    font = font)
+ax.tick_params(axis='both', labelsize=16)
+sns.despine()
+title = """
+<Mindstate Percentage> according to the <Subtype>"""
+fig_text(
+   0.1, .93,
+   title,
+   fontsize=20,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+   ],
+   fig=fig
+)
+
+plt.savefig(f"{figpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
 
 # %% Sleepiness
 
-subtypes = ["HS", "N1"]
-colors = ['#51b7ff','#a4abff']
+this_df = sub_df[
+    ['sub_id', 'subtype', 'mindstate', 'sleepiness']
+    ].groupby(['sub_id', 'subtype', 'mindstate'], as_index = False).mean()
 
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (12, 4))
+subtypes = ["HS", "N1"]
+# colors = ['#51b7ff','#a4abff']
+colors = ['#565B69','#0070C0']
+data = this_df
+x = 'mindstate'
+order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
+y = 'sleepiness'
+hue = 'subtype'
+hue_order = ['HS', 'N1']
+
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (14, 8))
 
 sns.violinplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'sleepiness', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
     dodge = True,
-    fill= False, 
+    fill = True, 
     inner = None,
-    cut = .5,
+    cut = .1,
     ax = ax,
     palette = colors,
     legend = None,
     split = True,
     gap = .05,
+    alpha = .2,
+    linecolor = "white"
     )
 
-sns.boxplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'sleepiness', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
-    dodge = True,
+sns.pointplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .1,
     palette = colors,
-    fill = False,
+    errorbar = 'se',
     legend = None,
-    gap = .15,
-    width = .2,
-    showfliers = False
+    capsize = .02,
+    linestyle = 'none'
     )
 
 sns.stripplot(
-    data = sub_df,
-    x = 'mindstate', 
-    order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT'], 
-    y = 'sleepiness', 
-    hue = 'subtype', 
-    hue_order = ['HS', 'N1'], 
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
     dodge = True,
     ax = ax,
     palette = colors,
     legend = None,
-    jitter = True
+    jitter = True,
+    alpha = .5
     )
 
 ax.set_yticks(
     ticks = np.arange(1, 10, 1), 
-    labels = np.arange(1, 10, 1), 
+    labels = ["Very Awake : 1", "2", "3", "4", "5", "6", "7", "8", "Falling Asleep : 9"], 
     font = font, 
     size = 10)
-ax.set_ylabel("Sleepiness", font = bold_font, size = 15)
+ax.set_ylabel("Sleepiness", font = bold_font, size = 18)
 ax.set_xticks(
-    ticks = np.arange(0, 6, 1), 
+    ticks = np.arange(0, 5, 1), 
     labels = ["Focused", "Mind Wandering", "Mind Blanking", 
-              "Hallucination/Illusion", "Distracted", "Forgot"], 
+              "Hallucination/Illusion", "Forgot"], 
     size = 20,
     font = font
     )
-ax.set_xlabel("Mindstate", font = bold_font, size = 15)
+ax.set_ylim(1, 9)
+ax.tick_params(axis='both', labelsize=16)
+sns.despine()
+ax.set_xlabel("Mindstate", font = bold_font, size = 18)
 title = """
 Subjective <Sleepiness> rating according to the <Mindstates>, by <Subtype> : [ <CTL>, <NT1> ]
 """
 fig_text(
-   0.07, .94,
+   0.1, .94,
    title,
-   fontsize=15,
+   fontsize=20,
    ha='left', va='center',
    color="k", font=font,
    highlight_textprops=[
@@ -399,11 +541,12 @@ fig_text(
    ],
    fig=fig
 )
-fig.tight_layout(pad = .5)
+fig.tight_layout(pad = 2)
+plt.savefig(f"{figpath}/point_strip_sleepiness_ms_subtype.png", dpi=200)
 
 # %% LME Sleepiness
 
-sub_df['sleepiness'] = pd.Categorical(sub_df['sleepiness'], ordered=True)
+# sub_df['sleepiness'] = pd.Categorical(sub_df['sleepiness'], ordered=True)
 
 model_formula = 'sleepiness ~ C(mindstate, Treatment("ON"))'
 model = OrderedModel.from_formula(model_formula, data=sub_df, groups = sub_df['sub_id'], distr='logit')
@@ -413,12 +556,18 @@ print(result.summary())
 
 # %% Misses & False Alarms
 
-data = sub_df
+this_df = sub_df[
+    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+     'correct_rejections', 'false_alarms', 'mindstate', 'sleepiness']
+    ].groupby(['sub_id', 'subtype', 'mindstate'], as_index = False).mean()
+
+data = this_df
 x = 'mindstate'
-order = ['ON', 'MW_I', 'MB', 'MW_H', 'MW_E', 'FORGOT']
+order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 hue = 'subtype'
 hue_order = ['HS', 'N1']
-colors = ['#51b7ff','#a4abff']
+# colors = ['#51b7ff','#a4abff']
+colors = ['#565B69','#0070C0']
 
 fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize = (7, 12), sharex = True)
 
@@ -450,15 +599,15 @@ sns.stripplot(
     ax = ax[0],
     palette = colors,
     legend = None,
-    alpha = .1,
+    alpha = .5,
     size = 3
     )
 
-ax[0].set_yticks(
-    ticks = np.arange(0, 120, 20), 
-    labels =  np.arange(0, 120, 20), 
-    font = font, 
-    size = 10)
+# ax[0].set_yticks(
+#     ticks = np.arange(0, 120, 20), 
+#     labels =  np.arange(0, 120, 20), 
+#     font = font, 
+#     size = 10)
 ax[0].set_ylabel("Misses (%)", font = bold_font, size = 15)
 
 
@@ -494,15 +643,15 @@ sns.stripplot(
     ax = ax[1],
     palette = colors,
     legend = None,
-    alpha = .1,
+    alpha = .5,
     size = 3
     )
 ax[1].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
-ax[1].set_yticks(
-    ticks = np.arange(0, 150, 50), 
-    labels =  np.arange(0, 150, 50), 
-    font = font, 
-    size = 10)
+# ax[1].set_yticks(
+#     ticks = np.arange(0, 150, 50), 
+#     labels =  np.arange(0, 150, 50), 
+#     font = font, 
+#     size = 10)
 
 y = 'rt_go'
 sns.pointplot(
@@ -536,7 +685,7 @@ sns.stripplot(
     ax = ax[2],
     palette = colors,
     legend = None,
-    alpha = .1,
+    alpha = .5,
     size = 3
     )
 
@@ -547,8 +696,8 @@ sns.stripplot(
 #     size = 10)
 ax[2].set_ylabel("Reaction Time Go (ms)", font = bold_font, size = 15)
 ax[2].set_xticks(
-    ticks = np.arange(0, 6, 1), 
-    labels = ["ON", "MW", "MB", "Hallu/Illu", "Distracted", "Forgot"], 
+    ticks = np.arange(0, 5, 1), 
+    labels = ["ON", "MW", "MB", "Hallu/Illu", "Forgot"], 
     size = 20,
     font = font
     )
@@ -575,6 +724,7 @@ fig_text(
    ],
    fig=fig
 )
+plt.savefig(f"{figpath}/miss_fa_rt_subtype.png", dpi=200)
 
 # %% 
 

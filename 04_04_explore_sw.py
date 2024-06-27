@@ -72,7 +72,67 @@ df = df.loc[~df.mindstate.isin(['DISTRACTED', 'MISS'])]
 mindstates = ['ON', 'MW', 'MB', 'FORGOT', 'HALLU']
 subtypes = ['HS', 'N1']
 channels = config.eeg_channels
+
+mean_df = df[['sub_id', 'subtype', 'density', 'ptp', 'uslope', 'dslope', 'frequency',
+       'sw_thresh', 'channel', 'mindstate']].groupby(
+           ['sub_id', 'subtype','channel', 'mindstate'], 
+           as_index = False).mean()
     
+# %% simple pointplot
+
+import seaborn as sns
+
+this_df = df[
+    ['sub_id', 'subtype', 'density', 'ptp', 'uslope', 'dslope', 'frequency',
+     'sw_thresh', 'mindstate']].groupby(
+           ['sub_id', 'subtype', 'mindstate'], as_index = False).mean()   
+
+data = this_df     
+y = 'density'
+x = "mindstate"
+order = ['ON', 'MW', 'MB', 'FORGOT', 'HALLU']
+hue = "subtype"
+hue_order = ['HS', 'N1']    
+         
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (6, 14))
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    errorbar = 'se',
+    capsize = 0.05,
+    dodge = .4,
+    linestyle = 'none'
+    )         
+sns.violinplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    fill = True,
+    alpha = 0.2,
+    dodge = True,
+    linecolor = 'white',
+    inner = None,
+    legend = None
+    )        
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    alpha = 0.3,
+    dodge = True,
+    legend = None
+    )
+           
 # %% Topo | Density | NT1 & HS | Mindstate
 
 feature = 'density'
@@ -81,10 +141,10 @@ list_values = []
 for i_ms, mindstate in enumerate(mindstates) :
     for subtype in subtypes :   
         for channel in channels :
-            list_values.append(df[feature].loc[
-                (df["mindstate"] == mindstate)
-                & (df["subtype"] == subtype)
-                & (df["channel"] == channel)
+            list_values.append(mean_df[feature].loc[
+                (mean_df["mindstate"] == mindstate)
+                & (mean_df["subtype"] == subtype)
+                & (mean_df["channel"] == channel)
                 ].mean())
 vmin = min(list_values)
 vmax = max(list_values)
@@ -99,15 +159,15 @@ for i_ms, mindstate in enumerate(mindstates) :
     list_easy = []
     list_hard = []        
     for channel in channels :
-        list_easy.append(df[feature].loc[
-            (df["subtype"] == "HS")
-            & (df["mindstate"] == mindstate)
-            & (df["channel"] == channel)
+        list_easy.append(mean_df[feature].loc[
+            (mean_df["subtype"] == "HS")
+            & (mean_df["mindstate"] == mindstate)
+            & (mean_df["channel"] == channel)
             ].mean())
-        list_hard.append(df[feature].loc[
-            (df["subtype"] == "N1")
-            & (df["mindstate"] == mindstate)
-            & (df["channel"] == channel)
+        list_hard.append(mean_df[feature].loc[
+            (mean_df["subtype"] == "N1")
+            & (mean_df["mindstate"] == mindstate)
+            & (mean_df["channel"] == channel)
             ].mean())
     
     if i_ms == 4 :
@@ -168,6 +228,129 @@ for i_ms, mindstate in enumerate(mindstates) :
     # figsavename = f"{swDataPath}{os.sep}Figs{os.sep}S1_topoplot_density_freq_05_4.png"
     # plt.savefig(figsavename, dpi = 300)
 
+# %% Topo | LME - Explo Subtype ME
+
+model = "density ~ sw_thresh + C(subtype)" 
+
+this_df = mean_df[
+    ['sub_id', 'subtype', 'channel', 'density', 'ptp', 'uslope', 'mindstate',
+     'dslope', 'frequency', 'sw_thresh']].groupby(
+         ['sub_id', 'subtype', 'mindstate', 'channel'], as_index = False).mean()
+
+fig, ax = plt.subplots(
+    nrows = 1, ncols = 1, figsize = (6, 6), layout = 'tight')
+
+temp_tval = []; temp_pval = []; chan_l = []
+for chan in channels :
+    subdf = this_df[
+        ['sub_id', 'subtype', 'channel', 'density', 'sw_thresh', 'mindstate']
+        ].loc[
+        (this_df.channel == chan)
+        ].dropna()
+    md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+    mdf = md.fit()
+    temp_tval.append(mdf.tvalues['C(subtype)[T.N1]'])
+    temp_pval.append(mdf.pvalues['C(subtype)[T.N1]'])
+    chan_l.append(chan)
+    
+if np.any(np.isnan(temp_tval)) :
+    temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+     
+_, corrected_pval = fdrcorrection(temp_pval)
+
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size = "5%", pad=0.05)
+im, cm = mne.viz.plot_topomap(
+    data = temp_tval,
+    pos = epochs.info,
+    axes = ax,
+    contours = 3,
+    mask = np.asarray(temp_pval) <= 0.05,
+    mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                linewidth=0, markersize=6),
+    cmap = "viridis",
+    vlim = (-4, 4)
+    )
+fig.colorbar(im, cax = cax, orientation = 'vertical')
+
+ax.set_title("NT1 vs CTL", fontweight = "bold")
+
+title = """
+Topographies of <Subtype Main Effect>
+on <Slow Wave Density>
+"""
+fig_text(
+   0.07, .94,
+   title,
+   fontsize=15,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+   ],
+   fig=fig
+)
+
+# %% Topo | LME - Explo MS ME
+
+model = "density ~ sw_thresh + C(subtype) * C(mindstate)" 
+
+fig, ax = plt.subplots(
+    nrows = 1, ncols = 1, figsize = (6, 6), layout = 'tight')
+
+temp_tval = []; temp_pval = []; chan_l = []
+for chan in channels :
+    subdf = mean_df[
+        ['sub_id', 'subtype', 'mindstate', 'channel', 'density', 'sw_thresh']
+        ].loc[
+        (mean_df.channel == chan)
+        ].dropna()
+    md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+    mdf = md.fit()
+    temp_tval.append(mdf.tvalues['C(subtype)[T.N1]'])
+    temp_pval.append(mdf.pvalues['C(subtype)[T.N1]'])
+    chan_l.append(chan)
+    
+if np.any(np.isnan(temp_tval)) :
+    temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+     
+_, corrected_pval = fdrcorrection(temp_pval)
+
+divider = make_axes_locatable(ax)
+cax = divider.append_axes("right", size = "5%", pad=0.05)
+im, cm = mne.viz.plot_topomap(
+    data = temp_tval,
+    pos = epochs.info,
+    axes = ax,
+    contours = 3,
+    mask = np.asarray(temp_pval) <= 0.05,
+    mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                linewidth=0, markersize=6),
+    cmap = "viridis",
+    vlim = (-4, 4)
+    )
+fig.colorbar(im, cax = cax, orientation = 'vertical')
+
+ax.set_title("NT1 vs CTL", fontweight = "bold")
+
+title = """
+Topographies of <Subtype Main Effect>
+on <Slow Wave Density>
+"""
+fig_text(
+   0.07, .94,
+   title,
+   fontsize=15,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+   ],
+   fig=fig
+)
+
 # %% Topo | LME - Subtype effect
 
 model = "density ~ sw_thresh + C(subtype) * C(mindstate)" 
@@ -177,7 +360,7 @@ fig, ax = plt.subplots(
 
 for i, mindstate in enumerate(mindstates):
     temp_tval = []; temp_pval = []; chan_l = []
-    cond_df = df.loc[df.mindstate == mindstate]
+    cond_df = mean_df.loc[mean_df.mindstate == mindstate]
     for chan in channels :
         subdf = cond_df[
             ['sub_id', 'subtype', 'mindstate', 'channel', 'density', 'sw_thresh']
@@ -241,7 +424,7 @@ for i_st, subtype in enumerate(subtypes) :
         nrows = 1, ncols = len(mindstates[1:]), figsize = (18, 8), layout = 'tight')
     for i, mindstate in enumerate(mindstates[1:]):
         temp_tval = []; temp_pval = []; chan_l = []
-        cond_df = df.loc[df.mindstate.isin(['ON', mindstate])]
+        cond_df = mean_df.loc[mean_df.mindstate.isin(['ON', mindstate])]
         for chan in channels :
             subdf = cond_df[
                 ['sub_id', 'subtype', 'mindstate', 'channel', 'density', 'sw_thresh']
