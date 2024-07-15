@@ -548,8 +548,8 @@ plt.savefig(f"{figpath}/point_strip_sleepiness_ms_subtype.png", dpi=200)
 
 # sub_df['sleepiness'] = pd.Categorical(sub_df['sleepiness'], ordered=True)
 
-model_formula = 'sleepiness ~ C(mindstate, Treatment("ON"))'
-model = OrderedModel.from_formula(model_formula, data=sub_df, groups = sub_df['sub_id'], distr='logit')
+model_formula = 'sleepiness ~ C(mindstate, Treatment("MW_I"))* C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, data=this_df, groups = this_df['sub_id'])
 result = model.fit(method='bfgs')
 
 print(result.summary())
@@ -725,6 +725,179 @@ fig_text(
    fig=fig
 )
 plt.savefig(f"{figpath}/miss_fa_rt_subtype.png", dpi=200)
+
+# %% M & FA - Subtype only
+
+this_df = sub_df[
+    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+     'correct_rejections', 'false_alarms']
+    ].groupby(['sub_id', 'subtype'], as_index = False).mean()
+
+data = this_df
+# x = 'mindstate'
+# order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
+hue = 'subtype'
+hue_order = ['HS', 'N1']
+# colors = ['#51b7ff','#a4abff']
+colors = ['#565B69','#0070C0']
+
+fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize = (4, 8), sharex = True)
+
+y = 'miss'
+sns.pointplot(
+    data = data,
+    # x = x, 
+    # order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .15,
+    palette = colors,
+    legend = None,
+    ax = ax[0],
+    errorbar = "se",
+    capsize = .05,
+    ls = "none"
+    )
+
+sns.stripplot(
+    data = data,
+    # x = x, 
+    # order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order,  
+    dodge = True,
+    ax = ax[0],
+    palette = colors,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+# ax[0].set_yticks(
+#     ticks = np.arange(0, 120, 20), 
+#     labels =  np.arange(0, 120, 20), 
+#     font = font, 
+#     size = 10)
+ax[0].set_ylabel("Misses (%)", font = bold_font, size = 15)
+
+
+y = "false_alarms"
+sns.pointplot(
+    data = data,
+    # x = x, 
+    # order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .15,
+    palette = colors,
+    # fill = False,
+    legend = None,
+    # gap = .15,
+    # width = .2,
+    # showfliers = False,
+    ax = ax[1],
+    errorbar = "se",
+    capsize = .05,
+    ls = "none"
+    )
+
+sns.stripplot(
+    data = data,
+    # x = x, 
+    # order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[1],
+    palette = colors,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+ax[1].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
+# ax[1].set_yticks(
+#     ticks = np.arange(0, 150, 50), 
+#     labels =  np.arange(0, 150, 50), 
+#     font = font, 
+#     size = 10)
+
+y = 'rt_go'
+sns.pointplot(
+    data = data,
+    # x = x, 
+    # order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .15,
+    palette = colors,
+    # fill = False,
+    legend = None,
+    # gap = .15,
+    # width = .2,
+    # showfliers = False,
+    ax = ax[2],
+    errorbar = "se",
+    capsize = .05,
+    ls = "none"
+    )
+
+sns.stripplot(
+    data = data,
+    # x = x, 
+    # order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[2],
+    palette = colors,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+# ax[1].set_yticks(
+#     ticks = np.arange(0, 150, 50), 
+#     labels =  np.arange(0, 150, 50), 
+#     font = font, 
+#     size = 10)
+ax[2].set_ylabel("Reaction Time Go (ms)", font = bold_font, size = 15)
+ax[2].set_xticks(
+    ticks = [-0.10, 0.10], 
+    labels = ["CTL", "NT1"], 
+    size = 20,
+    font = font
+    )
+ax[2].set_xlabel("Subtype", font = bold_font, size = 15)
+sns.despine(fig)
+fig.subplots_adjust(left=0.2, right=0.90, top=0.90, bottom=0.1)
+
+title = """<Misses>, <FA>, and <RT>
+according to the <Subtype> : [ <CTL>, <NT1> ]
+"""
+fig_text(
+   0.07, .94,
+   title,
+   fontsize=15,
+   ha='left', va='center',
+   color="k", font=font,
+   highlight_textprops=[
+      {'font': bold_font},
+      {'font': bold_font},
+      {'font': bold_font},
+      {'font': bold_font},
+      {'color': colors[0], 'font': bold_font},
+      {'color': colors[1], 'font': bold_font}
+   ],
+   fig=fig
+)
+
+plt.savefig(f"{figpath}/miss_fa_rt_subtype_noms.png", dpi=200)
 
 # %% 
 
