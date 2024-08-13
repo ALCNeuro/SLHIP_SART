@@ -239,15 +239,86 @@ for sub_id in sub_ids :
 df = pd.DataFrame(data_dict)
 df.to_csv(f"{figpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
 
-# %% smf
+# %% DF Manip
 
 sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS')]
-# sub_df.mindstate.replace('FORGOT', 'MB', inplace = True)
 
-model_formula = 'false_alarms ~ subtype*daytime'
-model = smf.mixedlm(model_formula, sub_df, groups=sub_df['sub_id'], missing = 'omit')
+this_df = sub_df[['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+       'correct_rejections', 'false_alarms', 'mindstate', 
+       'sleepiness', 'daytime']].groupby(
+           ['sub_id', 'subtype', 'mindstate', 'daytime'], 
+           as_index = False).mean()
+           
+hs_df = this_df.loc[(this_df.subtype == 'HS')]
+
+# %% smf
+
+model_formula = 'sleepiness ~ C(mindstate, Treatment("ON"))'
+model = smf.mixedlm(model_formula, hs_df, groups=hs_df['sub_id'], missing = 'drop')
 model_result = model.fit()
-model_result.summary()
+print(model_result.summary())
+
+# %% daytime check plots
+
+palette = ['#565B69','#0070C0']
+data = this_df
+y = 'miss'
+x = "daytime"
+# order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
+order = ['AM', 'PM']
+hue = "subtype"
+hue_order = ['HS', 'N1']    
+         
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 12))
+
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    errorbar = 'se',
+    capsize = 0.05,
+    dodge = .15,
+    linestyle = 'none',
+    palette = palette,
+    )         
+# sns.violinplot(
+#     data = data, 
+#     x = x,
+#     y = y,
+#     hue = hue,
+#     order = order,
+#     hue_order = hue_order,
+#     fill = True,
+#     alpha = 0.2,
+#     dodge = True,
+#     linecolor = 'white',
+#     inner = None,
+#     legend = None,
+#     palette = palette,
+#     cut = .5
+#     )         
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    alpha = 0.5,
+    dodge = True,
+    legend = None,
+    palette = palette
+    )
+
+# %% 
+
+model_formula = 'false_alarms ~ C(subtype)'
+model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
+model_result = model.fit()
+print(model_result.summary())
 
 # %% RadarPlot % MS / Subtype
 
@@ -548,7 +619,7 @@ plt.savefig(f"{figpath}/point_strip_sleepiness_ms_subtype.png", dpi=200)
 
 # sub_df['sleepiness'] = pd.Categorical(sub_df['sleepiness'], ordered=True)
 
-model_formula = 'sleepiness ~ C(mindstate, Treatment("MW_I"))* C(subtype, Treatment("HS"))'
+model_formula = 'sleepiness ~ C(mindstate, Treatment("MB"))* C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, data=this_df, groups = this_df['sub_id'])
 result = model.fit(method='bfgs')
 
@@ -901,15 +972,21 @@ plt.savefig(f"{figpath}/miss_fa_rt_subtype_noms.png", dpi=200)
 
 # %% 
 
-plt.figure()
-sns.kdeplot(
-    data = sub_df, 
-    x = "sleepiness", 
-    y = "false_alarms", 
-    hue = "subtype", 
-    fill = True, 
-    palette = colors, 
-    levels = 4,
-    font = font,
-    alpha = 0.5
-    )
+this_df = sub_df[
+    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+     'correct_rejections', 'false_alarms', 'mindstate', 'sleepiness']
+    ].groupby(['sub_id', 'subtype', 'mindstate'], as_index = False).mean()
+
+model_formula = 'miss ~ sleepiness + C(mindstate, Treatment("MB")) * C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, data=this_df, groups = this_df['sub_id'])
+result = model.fit(method='bfgs')
+
+print(result.summary())
+
+# %% 
+
+model_formula = 'percentage ~ C(mindstate, Treatment("MW_H")) * C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, data=df_mindstate, groups = df_mindstate['sub_id'])
+result = model.fit(method='bfgs')
+print(result.summary())
+

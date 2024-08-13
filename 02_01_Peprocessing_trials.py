@@ -35,13 +35,14 @@ import numpy as np
 import pandas as pd
 import mne
 from glob import glob
-from autoreject import AutoReject
+from autoreject import AutoReject, Ransac
 import SLHIP_config_ALC as cfg 
 import matplotlib.pyplot as plt
 import warnings
 
 import matplotlib
 matplotlib.use('Agg')
+# matplotlib.use('QtAgg')
 
 #### Paths
 if 'arthur' in os.getcwd():
@@ -162,6 +163,12 @@ for i, file_path in enumerate(files) :
     raw = cfg.load_and_preprocess_data(file_path)
     sf = raw.info['sfreq']
     
+    """
+    
+    HERE ADD PART TO INTERPOLATE CHANNEL OR IN FUNCTION LOAD AND PREPROCESS
+    
+    """
+    
     #### [2] Handle Events
     events, event_id = cfg.handle_events(raw, merge_dict=merge_dict)
     stim_events = mne.pick_events(events, include=[101,100])
@@ -186,9 +193,9 @@ for i, file_path in enumerate(files) :
         output_dir = os.path.join(path_preproc, "ica_files"), 
         n_components = ica_dic['n_components'], 
         l_freq = ica_dic['l_freq'], 
-        v_eog_ch=None, 
-        h_eog_ch=None, 
-        ecg_ch=None,
+        v_eog_ch='VEOG', 
+        h_eog_ch='HEOG', 
+        ecg_ch='ECG',
         icalabel=False
         )
     
@@ -214,6 +221,7 @@ for i, file_path in enumerate(files) :
         )
     ar.fit(ar_epochs[:round(len(epochs)*.1)])
     epochs_ar_ica, reject_log = ar.transform(epochs_ica, return_log=True)
+    epochs_ar_ica.apply_baseline((-.2, 0))
     epochs_ar_ica.save(this_trialepochs_savename, overwrite = True)
     
     fig = reject_log.plot(orientation = 'horizontal', show=False)
@@ -226,6 +234,7 @@ for i, file_path in enumerate(files) :
         )
     
     #### [6] ERP Trial and Contrast
+    epochs.apply_baseline((-.2, 0))
     evoked_go = epochs[str(go_id)].average()
     evoked_nogo = epochs[str(nogo_id)].average()
     fig = mne.viz.plot_compare_evokeds(
@@ -243,22 +252,22 @@ for i, file_path in enumerate(files) :
         section=sub_id,
         replace=False,
         )
-    fig = mne.viz.plot_compare_evokeds(
-        [evoked_go, evoked_nogo],
-        combine='gfp', 
-        show_sensors='upper right',
-        title='Averaged ERP across channels',
-        show = False
-        )
-    report_ERP.add_figure(
-        fig,
-        f"ERP NoGo vs Go of {sub_id} GFP",
-        image_format='png',
-        tags=('P300', 'GFP'),
-        section=sub_id,
-        replace=False,
-        )
-    
+    # fig = mne.viz.plot_compare_evokeds(
+    #     [evoked_go, evoked_nogo],
+    #     combine='gfp', 
+    #     show_sensors='upper right',
+    #     title='Averaged ERP across channels',
+    #     show = False
+    #     )
+    # report_ERP.add_figure(
+    #     fig,
+    #     f"ERP NoGo vs Go of {sub_id} GFP",
+    #     image_format='png',
+    #     tags=('P300', 'GFP'),
+    #     section=sub_id,
+    #     replace=False,
+    #     )
+    epochs_ica.apply_baseline((-.2, 0))
     evoked_go = epochs_ica[str(go_id)].average()
     evoked_nogo = epochs_ica[str(nogo_id)].average()
     fig = mne.viz.plot_compare_evokeds(
@@ -272,25 +281,25 @@ for i, file_path in enumerate(files) :
         fig,
         f"ERP NoGo vs Go of {sub_id} at Pz after ICA",
         image_format='png',
-        tags=('P300', 'Pz', 'AutoReject'),
+        tags=('P300', 'Pz', 'ICA'),
         section=sub_id,
         replace=False,
         )
-    fig = mne.viz.plot_compare_evokeds(
-        [evoked_go, evoked_nogo],
-        combine='gfp', 
-        show_sensors='upper right',
-        title='Averaged ERP across channels',
-        show = False
-        )
-    report_ERP.add_figure(
-        fig,
-        f"ERP NoGo vs Go of {sub_id} GFP after ICA",
-        image_format='png',
-        tags=('P300', 'GFP'),
-        section=sub_id,
-        replace=False,
-        )
+    # fig = mne.viz.plot_compare_evokeds(
+    #     [evoked_go, evoked_nogo],
+    #     combine='gfp', 
+    #     show_sensors='upper right',
+    #     title='Averaged ERP across channels',
+    #     show = False
+    #     )
+    # report_ERP.add_figure(
+    #     fig,
+    #     f"ERP NoGo vs Go of {sub_id} GFP after ICA",
+    #     image_format='png',
+    #     tags=('P300', 'GFP'),
+    #     section=sub_id,
+    #     replace=False,
+    #     )
     
     evoked_go = epochs_ar_ica[str(go_id)].average()
     evoked_nogo = epochs_ar_ica[str(nogo_id)].average()
@@ -305,25 +314,25 @@ for i, file_path in enumerate(files) :
         fig,
         f"ERP NoGo vs Go of {sub_id} at Pz after AutoReject and ICA",
         image_format='png',
-        tags=('P300', 'Pz', 'AutoReject', 'ICA'),
+        tags=('P300', 'Pz', 'ICA', 'AutoReject'),
         section=sub_id,
         replace=False,
         )
-    fig = mne.viz.plot_compare_evokeds(
-        [evoked_go, evoked_nogo],
-        combine='gfp', 
-        show_sensors='upper right',
-        title='Averaged ERP across channels',
-        show = False
-        )
-    report_ERP.add_figure(
-        fig,
-        f"ERP NoGo vs Go of {sub_id} GFP after AutoReject and ICA",
-        image_format='png',
-        tags=('P300', 'GFP', 'AutoReject', 'ICA'),
-        section=sub_id,
-        replace=False,
-        )
+    # fig = mne.viz.plot_compare_evokeds(
+    #     [evoked_go, evoked_nogo],
+    #     combine='gfp', 
+    #     show_sensors='upper right',
+    #     title='Averaged ERP across channels',
+    #     show = False
+    #     )
+    # report_ERP.add_figure(
+    #     fig,
+    #     f"ERP NoGo vs Go of {sub_id} GFP after AutoReject and ICA",
+    #     image_format='png',
+    #     tags=('P300', 'GFP', 'AutoReject', 'ICA'),
+    #     section=sub_id,
+    #     replace=False,
+    #     )
     del evoked_go, evoked_nogo, epochs_ica, epochs
     
     conditions=[str(go_id),str(nogo_id)];
@@ -432,53 +441,54 @@ for i, file_path in enumerate(files) :
 
     # plt.close('all')    
 
+    
 report_Event.save(
-    os.path.join(path_data,"reports","Events_2.html"), 
+    os.path.join(path_data,"reports","Events_3.html"), 
     overwrite=True, 
     open_browser=False
     )
 report_AR.save(
-    os.path.join(path_data,"reports","AutoRej_2.html"), 
+    os.path.join(path_data,"reports","AutoRej_3.html"), 
     overwrite=True, 
     open_browser=False
     )
 report_ERP.save(
-    os.path.join(path_data,"reports","ERP_2.html"), 
+    os.path.join(path_data,"reports","ERP_3.html"), 
     overwrite=True, 
     open_browser=False
     )
 report_ICA.save(
-    os.path.join(path_data,"reports","ICA_2.html"), 
+    os.path.join(path_data,"reports","ICA_3.html"), 
     overwrite=True,
     open_browser=False
     )
     
 # %% GET ERPs across subjects
-# evokeds_files = glob.glob(os.path.join(path_data,"intermediary" ,'erp_ce_*.fif'))
-# evokeds = {} #create an empty dict
-# conditions = ['100','101']
-# # #convert list of evoked in a dict (w/ diff conditions if needed)
-# for idx, c in enumerate(conditions):
-#     evokeds[c] = [mne.read_evokeds(d)[idx] for d in 
-#     evokeds_files]
+evokeds_files = glob(os.path.join(path_data,"intermediary" ,'ERP_*.fif'))
+evokeds = {} #create an empty dict
+conditions = ['100','101']
+# #convert list of evoked in a dict (w/ diff conditions if needed)
+for idx, c in enumerate(conditions):
+    evokeds[c] = [mne.read_evokeds(d)[idx] for d in 
+    evokeds_files]
 
-# evokeds # We can see that he matched the conditions by treating each as if it was 2 objcts as before 
-
-
-# # "Plot averaged ERP on all subj"
-# ERP_mean = mne.viz.plot_compare_evokeds(evokeds,
-#                              picks='Pz', show_sensors='upper right',
-#                              title='Averaged ERP all subjects',
-#                             )
-# plt.show()
+evokeds # We can see that he matched the conditions by treating each as if it was 2 objcts as before 
 
 
-# #gfp: "Plot averaged ERP on all subj"
-# ERP_gfp = mne.viz.plot_compare_evokeds(evokeds,
-#                              combine='gfp', show_sensors='upper right',
-#                              title='Averaged ERP all subjects',
-#                             )
-# plt.show()
+# "Plot averaged ERP on all subj"
+ERP_mean = mne.viz.plot_compare_evokeds(evokeds,
+                              picks='Pz', show_sensors='upper right',
+                              title='Averaged ERP all subjects',
+                            )
+plt.show()
+
+
+#gfp: "Plot averaged ERP on all subj"
+ERP_gfp = mne.viz.plot_compare_evokeds(evokeds,
+                              combine='gfp', show_sensors='upper right',
+                              title='Averaged ERP all subjects',
+                            )
+plt.show()
 
 
 # evokeds_files = glob.glob(path_data+"intermediary/" + '/cont_ce_*.fif')
@@ -488,7 +498,7 @@ report_ICA.save(
 #     evokeds_diff[idx] = mne.read_evokeds(d)[0]
     
 # ERP_mean = mne.viz.plot_evoked(evokeds_diff,
-#                              picks='PO8',
-#                              title='Averaged difference wave all subjects',
+#                               picks='PO8',
+#                               title='Averaged difference wave all subjects',
 #                             )
 # plt.show()

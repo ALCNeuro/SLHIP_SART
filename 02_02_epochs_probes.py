@@ -123,6 +123,16 @@ for i, file_path in enumerate(files) :
     else :
         behav_path = behav_paths[1]
     
+    this_icapath = glob(os.path.join(
+        path_preproc, "ica_files", f"*{sub_id}*ica.fif"
+        )) 
+    
+    if len(this_icapath) < 1 :
+        print(f"No ICA file found for {sub_id}, skipping...")
+        continue
+    else : 
+        this_icapath = this_icapath[0]
+    
     mat = loadmat(behav_path)
     df_probe = pd.DataFrame(
         mat['probe_res'], 
@@ -142,20 +152,9 @@ for i, file_path in enumerate(files) :
         -> {vol_answers.shape[0]} Voluntary Answers
         -> {sleepi_answers.shape[0]} Sleepiness answers""")
     
-    this_icapath = glob(os.path.join(
-        path_preproc, "ica_files", f"*{sub_id}*ica.fif"
-        )) 
-    
-    if len(this_icapath) < 1 :
-        print(f"No ICA file found for {sub_id}, skipping...")
-        continue
-    else : 
-        this_icapath = this_icapath[0]
-    
     ica = mne.preprocessing.read_ica(this_icapath)
-    
         
-    #### [7] SART Probes
+    #### [2] SART Probes
 
     ms_metadatadic = {
         "sub_id" : [sub_id for i in range(ms_probes.shape[0])], 
@@ -179,12 +178,12 @@ for i, file_path in enumerate(files) :
         baseline = (None, None),
         preload = True,
         flat = flat_criteria,
-        reject=dict(eeg=threshold),
+        # reject=dict(eeg=threshold),
         event_repeated = 'merge'
         )
-    good_epochs = [True if not log else False 
-                  for i, log in enumerate(epochs_probes.drop_log)]
-    epochs_probes.metadata = probe_metadata[good_epochs]
+    # good_epochs = [True if not log else False 
+    #               for i, log in enumerate(epochs_probes.drop_log)]
+    # epochs_probes.metadata = probe_metadata[good_epochs]
     
     epochs_probes.set_eeg_reference(ref_channels = ['TP9', 'TP10'])
     
