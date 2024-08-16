@@ -95,7 +95,7 @@ go_id=101
 nogo_id=100
 conditions=[str(go_id),str(nogo_id)]
 merge_dict = {
-    101 : [65,66,68,69,70,71,72,72],
+    101 : [65,66,68,69,70,71,72,73],
     100 : [67]
     }
 
@@ -151,12 +151,13 @@ for i, file_path in enumerate(files) :
     this_trialepochs_savename = os.path.join(
         path_preproc, "epochs_task", f"{sub_id}_epo.fif"
         )
-    this_probes_savename = os.path.join(
-        path_preproc, "epochs_probes", f"{sub_id}_epo.fif"
-        )
+    # this_probes_savename = os.path.join(
+    #     path_preproc, "epochs_probes", f"{sub_id}_epo.fif"
+    #     )
     
-    if (os.path.exists(this_trialepochs_savename) and 
-        os.path.exists(this_probes_savename)):
+    if os.path.exists(this_trialepochs_savename) :
+    # if (os.path.exists(this_trialepochs_savename) and 
+    #     os.path.exists(this_probes_savename)):
         print(f"...{sub_id}, file {i+1} / {len(files)} Already processed, skipping...")
         continue
     
@@ -466,11 +467,10 @@ report_ICA.save(
 # %% GET ERPs across subjects
 evokeds_files = glob(os.path.join(path_data,"intermediary" ,'ERP_*.fif'))
 evokeds = {} #create an empty dict
-conditions = ['100','101']
+conditions = ['101','100']
 # #convert list of evoked in a dict (w/ diff conditions if needed)
 for idx, c in enumerate(conditions):
-    evokeds[c] = [mne.read_evokeds(d)[idx] for d in 
-    evokeds_files]
+    evokeds[c] = [mne.read_evokeds(d)[idx] for d in evokeds_files]
 
 evokeds # We can see that he matched the conditions by treating each as if it was 2 objcts as before 
 
