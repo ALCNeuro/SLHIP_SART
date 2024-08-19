@@ -49,6 +49,9 @@ import SLHIP_config_ALC as cfg
 import matplotlib.pyplot as plt
 import warnings
 
+import locale
+locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')
+
 import matplotlib
 
 #### Paths
@@ -186,9 +189,18 @@ for i, file_path in enumerate(files) :
     subtype = sub_id[:2]
     session = sub_id[-2:]
     
+    et_filepath = glob(os.path.join(
+        path_data, 'experiment', f'sub_{sub_id[:-3]}', "*.asc")
+        )
+    
     scoring_savepath = os.path.join(
         path_preproc, "epochs_scoring", f"{sub_id}_hypno.txt"
         )
+    
+    if session == 'AM' :
+        et_filepath = et_filepath[0]
+    else : 
+        et_filepath = et_filepath[1]
     
     if os.path.exists(scoring_savepath):
         print(f"...{sub_id}, file {i+1} / {len(files)} Already scored, skipping...")
@@ -209,10 +221,12 @@ for i, file_path in enumerate(files) :
     
     data = raw.get_data(units = {'eeg' : 'uV', 'eog' : 'uV'})
     
-    visu_scoring(
-            data, 
-            ms_probes, 
-            scoring_savepath,
-            channels_names = ['F3', 'C3', 'O1', 'VEOG', 'HEOG']
-            )
+    
+    
+    # visu_scoring(
+    #         data, 
+    #         ms_probes, 
+    #         scoring_savepath,
+    #         channels_names = ['F3', 'C3', 'O1', 'VEOG', 'HEOG']
+    #         )
   
