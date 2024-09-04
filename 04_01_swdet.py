@@ -286,7 +286,7 @@ if __name__ == '__main__':
     
     # Set up a pool of worker processes
     num_processes = multiprocessing.cpu_count()
-    pool = multiprocessing.Pool(processes = 4)
+    pool = multiprocessing.Pool(processes = 1)
     
     # Process the EEG files in parallel
     pool.map(SW_detect, eeg_files)

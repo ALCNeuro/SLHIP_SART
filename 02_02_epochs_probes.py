@@ -155,7 +155,7 @@ for i, file_path in enumerate(files) :
     ica = mne.preprocessing.read_ica(this_icapath)
         
     #### [2] SART Probes
-
+    
     ms_metadatadic = {
         "sub_id" : [sub_id for i in range(ms_probes.shape[0])], 
         "subtype" : [subtype for i in range(ms_probes.shape[0])], 
@@ -185,6 +185,7 @@ for i, file_path in enumerate(files) :
     #               for i, log in enumerate(epochs_probes.drop_log)]
     # epochs_probes.metadata = probe_metadata[good_epochs]
     
+    epochs_probes.metadata = probe_metadata
     epochs_probes.set_eeg_reference(ref_channels = ['TP9', 'TP10'])
     
     epochs_probes.save(this_probes_savename, overwrite = True)
