@@ -5,8 +5,9 @@ Created on Thu Dec 14 16:10:05 2023
 
 @author: arthurlecoz
 
-behav_explore.py
+01_01_behav_20s_MS.py
 """
+
 # %% Description
 """
 - test_res
@@ -105,6 +106,7 @@ icapath = os.path.join(preprocpath, "ica_files")
 test_col = ["nblock","block_cond","image","ntrial","digit","nogo_digit",
            "resp_key","stim_onset","dur_pres","resp_time","corr_nogo",
            "corr_go"]
+
 probe_col = [
     "nprobe","t_probe_th","t_probe_act","nblock","block_cond","ntrial",
     "PQ1_respkey","PQ2_respkey","PQ3_respkey",
@@ -131,7 +133,10 @@ sub_ids = np.unique(np.array(
 
 ms_keydic = {}
 
-subtype_palette = ["#4a5759", "#bf0603", "#ffc300"]
+# subtype_palette = ["#4a5759", "#bf0603", "#ffc300"]
+subtype_palette = ["#8d99ae", "#d00000", "#ffb703"]
+
+# subtype_palette = ["#8d99ae", "#d00000"]
 
 # %% functions
 
@@ -161,8 +166,12 @@ def calculate_behavioral_metrics(interprobe_mat):
     nogo_trials = interprobe_mat_20s[interprobe_mat_20s['digit'] == 3]
     hits = 100 * len(go_trials[go_trials['corr_go'] == 1]) / len(go_trials)
     miss = 100 * (1 - hits / 100)
-    cr = 100 * len(nogo_trials[nogo_trials['corr_nogo'] == 1]) / len(nogo_trials)
-    fa = 100 * (1 - cr / 100)
+    if not len(nogo_trials) :
+        cr = np.nan
+        fa = np.nan
+    else : 
+        cr = 100 * len(nogo_trials[nogo_trials['corr_nogo'] == 1]) / len(nogo_trials)
+        fa = 100 * (1 - cr / 100)
     rtgo = go_corr['rt'].mean()
     rtnogo = nogo_trials['rt'].mean()
     return hits, miss, cr, fa, rtgo, rtnogo
@@ -170,9 +179,10 @@ def calculate_behavioral_metrics(interprobe_mat):
 
 # %% 
 
-columns = ['sub_id', 'subtype', 'nblock', 'rt_go', 'rt_nogo', 'hits', 
-           'miss', 'correct_rejections', 'false_alarms', 'mindstate', 
-           'voluntary', 'sleepiness', 'daytime']
+columns = ['sub_id', 'subtype', 'nblock', 'probe', 
+           'rt_go', 'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms', 
+           'mindstate', 'voluntary', 'sleepiness', 'daytime']
+
 data_dict = {col: [] for col in columns}
 
 for sub_id in sub_ids :
@@ -201,12 +211,10 @@ for sub_id in sub_ids :
         df_probe["mindstate"] = [probe_int_str[value] for value in df_probe.PQ1_respval]
      
         # Predefined lists for data collection
-        
-
         for nblock in df_test['nblock'].unique():
+            
             block_mat_test = filter_behav(df_test, nblock)
             block_mat_probe = filter_probe(df_probe, nblock)
-            
             for i, pause_trial in enumerate(block_mat_probe["ntrial"]):
                 if i == 0 :
                     interprobe_mat = block_mat_test.loc[
@@ -226,6 +234,7 @@ for sub_id in sub_ids :
                     sub_id=sub_id, 
                     subtype=subtype, 
                     nblock=nblock, 
+                    probe=i+1,
                     rt_go=rtgo, 
                     rt_nogo=rtnogo, 
                     hits=hits, 
@@ -246,6 +255,33 @@ df.to_csv(f"{behavpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
 
 # sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS')]
 sub_df = df.loc[(df.mindstate != 'MISS')]
+
+total_block = []
+total_probe = []
+for sub_id in sub_df.sub_id.unique() :
+    totblock = 0
+    totprobe = 0
+    subject_df = sub_df.loc[sub_df.sub_id == sub_id]
+    for daytime in subject_df.daytime.unique() :
+        daytime_df = subject_df.loc[sub_df.daytime == daytime]
+        for block in daytime_df.nblock.unique():
+            totblock +=1 
+            block_df = daytime_df.loc[daytime_df.nblock == block]
+            for probe in block_df.probe.unique():
+                totprobe += 1
+                
+                total_block.append(totblock)
+                total_probe.append(totprobe)
+
+sub_df['total_block'] = total_block
+sub_df['total_probe'] = total_probe
+            
+
+block_df = sub_df[['sub_id', 'subtype', 'nblock', 'rt_go', 'rt_nogo', 'hits', 'miss',
+       'correct_rejections', 'false_alarms', 'mindstate', 'voluntary',
+       'sleepiness', 'daytime']].groupby(
+           ['sub_id', 'subtype', 'mindstate', 'nblock', 'daytime'], 
+           as_index = False).mean()
 
 this_df = sub_df[['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
        'correct_rejections', 'false_alarms', 'mindstate', 
@@ -428,6 +464,192 @@ model_result = model.fit()
 print(f"Statistics for {y}:\n{model_result.summary()}")
 
 # %% Plots no mindstates
+# %% Joint
+
+this_df = sub_df[
+    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+     'correct_rejections', 'false_alarms', 'sleepiness']
+    ].groupby(['sub_id', 'subtype'], as_index = False).mean()
+
+data = this_df
+hue = 'subtype'
+hue_order = ['HS', 'N1', 'HI']
+
+fig, ax = plt.subplots(nrows = 4, ncols = 1, figsize = (3, 10), sharex = True)
+
+y = 'sleepiness'
+sns.pointplot(
+    data = data, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .55,
+    palette = subtype_palette,
+    legend = None,
+    ax = ax[0],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none",
+    alpha = .8
+    )
+
+sns.stripplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order,  
+    dodge = True,
+    ax = ax[0],
+    palette = subtype_palette,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+ax[0].set_yticks(
+    ticks = np.linspace(1, 9, 5), 
+    labels = np.linspace(1, 9, 5).astype(int), 
+    font = font, 
+    size = 12)
+ax[0].set_ylim(1, 9)
+ax[0].set_ylabel("Sleepiness (KSS)", font = bold_font, size = 15)
+
+
+y = 'miss'
+sns.pointplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .55,
+    palette = subtype_palette,
+    legend = None,
+    ax = ax[1],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none",
+    alpha = .8
+    )
+
+sns.stripplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order,  
+    dodge = True,
+    ax = ax[1],
+    palette = subtype_palette,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+ax[1].set_yticks(
+    ticks = np.linspace(0, 40, 5), 
+    labels =  np.linspace(0, 40, 5).astype(int), 
+    font = font, 
+    size = 12)
+ax[1].set_ylim(0, 40)
+ax[1].set_ylabel("Misses (%)", font = bold_font, size = 15)
+
+
+y = "false_alarms"
+sns.pointplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .55,
+    palette = subtype_palette,
+    legend = None,
+    ax = ax[2],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none",
+    alpha = .8
+    )
+
+sns.stripplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[2],
+    palette = subtype_palette,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+ax[2].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
+ax[2].set_yticks(
+    ticks = np.linspace(0, 60, 4), 
+    labels = np.linspace(0, 60, 4).astype(int), 
+    font = font, 
+    size = 12)
+ax[2].set_ylim(0, 60)
+
+y = 'rt_go'
+sns.pointplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .55,
+    palette = subtype_palette,
+    legend = None,
+    ax = ax[3],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none",
+    alpha = .8
+    )
+
+sns.stripplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[3],
+    palette = subtype_palette,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+ax[3].set_yticks(
+    ticks = np.linspace(.3, .6, 4), 
+    labels = np.round(np.linspace(.3, .6, 4), 1), 
+    font = font, 
+    size = 12)
+ax[3].set_ylim(.3, .6)
+ax[3].set_ylabel("RT Go (ms)", font = bold_font, size = 15)
+ax[3].set_xlabel("Subtype", font = bold_font, size = 15)
+sns.despine(fig, bottom = True)
+
+for i in range(4):
+    ax[i].tick_params(
+        axis='x',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        bottom=False,      # ticks along the bottom edge are off
+        top=False,         # ticks along the top edge are off
+        labelbottom=False,
+        )
+
+fig.tight_layout()
+plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
+
+# %% Check stats individually 
+
+y = 'false_alarms'
+
+model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
+model_result = model.fit()
+print(f"Statistics for {y}:\n{model_result.summary()}")
+
+# %% Separated 
 #### FA
 
 st_df = sub_df[['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
@@ -449,7 +671,7 @@ sns.stripplot(
     y = y,
     order = order,
     alpha = 0.5,
-    dodge = True,
+    # dodge = True,
     legend = None,
     palette = subtype_palette
     )
@@ -458,7 +680,7 @@ sns.pointplot(
     x = x,
     y = y,
     order = order,
-    dodge = .55,
+    dodge = True,
     errorbar = 'se',
     capsize = 0.05,
     linestyle = 'none',
@@ -471,7 +693,7 @@ sns.violinplot(
     order = order,
     fill = True,
     alpha = 0.2,
-    dodge = True,
+    # dodge = True,
     linecolor = 'white',
     inner = None,
     legend = None,
@@ -514,7 +736,7 @@ sns.stripplot(
     y = y,
     order = order,
     alpha = 0.5,
-    dodge = True,
+    # dodge = True,
     legend = None,
     palette = subtype_palette,
     )
@@ -523,7 +745,7 @@ sns.pointplot(
     x = x,
     y = y,
     order = order,
-    dodge = .55,
+    dodge = True,
     errorbar = 'se',
     capsize = 0.05,
     linestyle = 'none',
@@ -536,7 +758,7 @@ sns.violinplot(
     order = order,
     fill = True,
     alpha = 0.2,
-    dodge = True,
+    # dodge = True,
     linecolor = 'white',
     inner = None,
     legend = None,
@@ -572,7 +794,7 @@ print(f"Statistics for {y}:\n{model_result.summary()}")
 
 y = 'miss'
          
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (3, 5))
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (4, 6))
 
 sns.stripplot(
     data = data, 
@@ -580,7 +802,7 @@ sns.stripplot(
     y = y,
     order = order,
     alpha = 0.5,
-    dodge = True,
+    # dodge = True,
     legend = None,
     palette = subtype_palette,
     )
@@ -591,7 +813,7 @@ sns.pointplot(
     order = order,
     errorbar = 'se',
     capsize = 0.05,
-    dodge = .55,
+    dodge = True,
     linestyle = 'none',
     palette = subtype_palette
     )             
@@ -614,6 +836,202 @@ model = smf.mixedlm(model_formula, st_df, groups=st_df['sub_id'], missing = 'dro
 model_result = model.fit()
 print(f"Statistics for {y}:\n{model_result.summary()}")
 
+# %% Tests stats
+
+y = 'rt_go'
+
+model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, st_df, groups=st_df['sub_id'], missing = 'drop')
+model_result = model.fit()
+print(f"Statistics for {y}:\n{model_result.summary()}")
+
+# %% Plots no mindstates NT1
+#### FA
+
+st_df = sub_df[['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+       'correct_rejections', 'false_alarms', 
+       'sleepiness', ]].groupby(
+           ['sub_id', 'subtype'], 
+           as_index = False).mean()
+
+data = st_df
+y = 'false_alarms'
+x = "subtype"
+order = ['HS', 'N1']
+         
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (3, 5))
+
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    alpha = 0.5,
+    # dodge = True,
+    legend = None,
+    palette = subtype_palette
+    )
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    # dodge = True,
+    errorbar = 'se',
+    capsize = 0.05,
+    linestyle = 'none',
+    palette = subtype_palette
+    )         
+sns.violinplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    fill = True,
+    alpha = 0.2,
+    # dodge = True,
+    linecolor = 'white',
+    inner = None,
+    legend = None,
+    palette = subtype_palette,
+    )         
+
+ax.set_ylabel(y, font = bold_font, fontsize = 16)
+ax.set_xlabel(x, font = bold_font, fontsize = 16)
+ax.set_xticks(
+    np.linspace(0,1,2), 
+    ["HS", "N1"], 
+    font = font, 
+    fontsize = 16
+    )
+ax.set_yticks(
+    np.linspace(0,100,5), 
+    np.linspace(0,100,5), 
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(0, 75)
+sns.despine(bottom=True)
+fig.tight_layout()
+plt.savefig(f"{behavpath}/{y}_subtype_nt1.png", dpi=200)
+
+model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, st_df, groups=st_df['sub_id'], missing = 'drop')
+model_result = model.fit()
+print(f"Statistics for {y}:\n{model_result.summary()}")
+
+#### SLEEPINESS
+
+y = 'sleepiness'
+
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (3, 5))
+
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    alpha = 0.5,
+    # dodge = True,
+    legend = None,
+    palette = subtype_palette,
+    )
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    # dodge = True,
+    errorbar = 'se',
+    capsize = 0.05,
+    linestyle = 'none',
+    palette = subtype_palette
+    )             
+sns.violinplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    fill = True,
+    alpha = 0.2,
+    # dodge = .15,
+    linecolor = 'white',
+    inner = None,
+    legend = None,
+    palette = subtype_palette,
+    cut = .2
+    )    
+
+ax.set_ylabel(y, font = bold_font, fontsize = 16)
+ax.set_xlabel(x, font = bold_font, fontsize = 16)
+ax.set_xticks(
+    np.linspace(0,1,2), 
+    ["HS", "N1"],
+    font = font, 
+    fontsize = 14
+    )
+ax.set_yticks(
+    np.linspace(1,9,9), 
+    np.linspace(1,9,9).astype(int), 
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(1, 9)
+sns.despine(bottom=True)
+fig.tight_layout()
+plt.savefig(f"{behavpath}/{y}_subtype_nt1.png", dpi=200)
+
+model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, st_df, groups=st_df['sub_id'], missing = 'drop')
+model_result = model.fit()
+print(f"Statistics for {y}:\n{model_result.summary()}")
+
+#### MISS
+
+y = 'miss'
+         
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (3, 5))
+
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    alpha = 0.5,
+    # dodge = True,
+    legend = None,
+    palette = subtype_palette,
+    )
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    errorbar = 'se',
+    capsize = 0.05,
+    # dodge = True,
+    linestyle = 'none',
+    palette = subtype_palette
+    )             
+
+ax.set_ylabel(y, font = bold_font, fontsize = 16)
+ax.set_xlabel(x, font = bold_font, fontsize = 16)
+ax.set_xticks(
+    np.linspace(0,1,2), 
+    ["HS", "N1"],
+    font = font, 
+    fontsize = 10
+    )
+ax.set_ylim(-1, 35)
+sns.despine(bottom=True)
+fig.tight_layout()
+plt.savefig(f"{behavpath}/{y}_subtype_nt1.png", dpi=200)
+
+model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
+model = smf.mixedlm(model_formula, st_df, groups=st_df['sub_id'], missing = 'drop')
+model_result = model.fit()
+print(f"Statistics for {y}:\n{model_result.summary()}")
+
 # %% 
 # %% 
 
@@ -629,17 +1047,18 @@ mindstate_counts = sub_df.groupby(['subtype', 'mindstate']).size().unstack(fill_
 mindstate_percentages = mindstate_counts.div(mindstate_counts.sum(axis=1), axis=0) * 100
 
 # Create radar plot for each subtype
-subtypes = ['HS', 'N1', 'HI']
+# subtypes = ['HS', 'N1', 'HI']
+subtypes = ['HS', 'N1']
 kind_thought = list(sub_df.mindstate.unique())
-full_thought = ["ON", "MW Internal", "Distracted", "MB", "Forgor", "Hallucination/Illusion"]
+full_thought = ["ON", "MW", "Distracted", "MB", "Forgot", "Hallucination"]
 # kind_thought.remove('MISS')  # Remove 'MISS' from the radar plot
 
 max_value = mindstate_percentages.max().max()
 
 # Radar plot settings
-colors = {'HS': '#417AB2', 'N1': '#EF8E3D', 'HI' : '#539F41'}
+colors = {'HS': '#8d99ae', 'N1': '#d00000', 'HI' : '#539F41'}
 
-fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(7, 7), dpi=150)
+fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(4, 4), dpi=150)
 # plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05, weight='bold', loc='left')
 for subtype in subtypes:
     values = mindstate_percentages.loc[subtype, kind_thought].values.tolist()
@@ -652,11 +1071,11 @@ for subtype in subtypes:
     ax.plot(angles, values, color=colors[subtype], linewidth=2, label=subtype)
 
 ax.set_xticks(angles[:-1])
-ax.set_xticklabels(full_thought, font = font)
-ax.set_ylim(0, 100)
-ax.set_yticks(np.linspace(0, 100, 5))
+ax.set_xticklabels(full_thought, font = bold_font, fontsize = 14)
+ax.set_ylim(0, 60)
+ax.set_yticks(np.linspace(0, 60, 4))
 ax.set_yticklabels(
-    [f'{int(tick)}%' for tick in np.linspace(0, 100, 5)], 
+    [f'{int(tick)}%' for tick in np.linspace(0, 60, 4)], 
     color='grey',
     font = font)
 ax.yaxis.set_ticks_position('left')
@@ -666,39 +1085,40 @@ ax.yaxis.set_ticks_position('left')
 ax.grid(color='grey', linestyle='-.', linewidth=0.5, alpha=0.5)
 
 # Add legend
-ax.legend(
-    title = "Subtype", 
-    frameon = False, 
-    bbox_to_anchor=(.65, .65, 0.5, 0.5), 
-    title_fontsize = 14, 
-    fontsize = 12
-    ) 
+# ax.legend(
+#     title = "Subtype", 
+#     frameon = False, 
+#     bbox_to_anchor=(.65, .65, 0.5, 0.5), 
+#     title_fontsize = 14, 
+#     fontsize = 12
+#     ) 
 
 # Remove the outer circle
 ax.spines['polar'].set_visible(False)
 
-title = 'Percentage of <Mindstates> by <Subtype>'
-fig_text(
-   0.1, .95,
-   title,
-   fontsize=15,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-   ],
-   fig=fig
-)
+# title = 'Percentage of <Mindstates> by <Subtype>'
+# fig_text(
+#    0.1, .95,
+#    title,
+#    fontsize=15,
+#    ha='left', va='center',
+#    color="k", font=font,
+#    highlight_textprops=[
+#       {'font': bold_font},
+#       {'font': bold_font},
+#    ],
+#    fig=fig
+# )
 fig.tight_layout()
 # plt.title('Percentage of Mindstates by Subtype', size=24, y=1.05, weight='bold')
-plt.savefig(f"{behavpath}/radar_plot_mindstates_by_subtype.png", dpi=200)
+# plt.savefig(f"{behavpath}/radar_plot_mindstates_by_subtype.png", dpi=200)
+plt.savefig(f"{behavpath}/radar_plot_mindstates_nt1_cns.png", dpi=200)
 plt.show()
 
 # %% ready fig ms %
 
-coi = ['sub_id', 'subtype', 'mindstate', 'percentage']
-# coi = ['sub_id', 'subtype', 'daytime', 'mindstate', 'percentage']
+# coi = ['sub_id', 'subtype', 'mindstate', 'percentage']
+coi = ['sub_id', 'subtype', 'sleepiness', 'mindstate', 'percentage']
 dic = {c : [] for c in coi}
 
 for sub_id in sub_df.sub_id.unique() :    
@@ -714,6 +1134,10 @@ for sub_id in sub_df.sub_id.unique() :
             len(this_df.mindstate.loc[
                 (this_df['mindstate'] == mindstate)]
                 )/len(this_df.mindstate))
+        dic['sleepiness'].append(
+            this_df.sleepiness.loc[
+                (this_df['mindstate'] == mindstate)].mean()
+                )
 
 df_mindstate = pd.DataFrame.from_dict(dic)
 
@@ -808,11 +1232,11 @@ print(model_result.summary())
 data = df_mindstate
 y = 'percentage'
 x = "mindstate"
-order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT', 'MW_E']
+order = ['ON', 'MW_I', 'MB', 'MW_H']#, 'FORGOT', 'MW_E']
 hue = "subtype"
 hue_order = ['HS', 'N1', 'HI']    
          
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 12))
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (5, 4))
 sns.pointplot(
     data = data, 
     x = x,
@@ -824,8 +1248,9 @@ sns.pointplot(
     capsize = 0.05,
     dodge = .55,
     linestyle = 'none',
-    alpha = .8
-    # palette = palette,
+    alpha = .8,
+    palette = subtype_palette,
+    legend = None
     )         
 # sns.violinplot(
 #     data = data, 
@@ -840,7 +1265,7 @@ sns.pointplot(
 #     linecolor = 'white',
 #     inner = None,
 #     legend = None,
-#     palette = palette,
+#     palette = subtype_palette,
 #     cut = .5
 #     )         
 sns.stripplot(
@@ -853,25 +1278,25 @@ sns.stripplot(
     alpha = 0.5,
     dodge = True,
     legend = None,
-    # palette = palette
+    palette = subtype_palette
     )
 
-plt.legend(
-    title = "Subtype", 
-    frameon = False, 
-    bbox_to_anchor=(.5, .5, 0.5, 0.5), 
-    title_fontsize = 14, 
-    fontsize = 12
-    ) 
+# plt.legend(
+#     title = "Subtype", 
+#     frameon = False, 
+#     bbox_to_anchor=(.5, .5, 0.5, 0.5), 
+#     title_fontsize = 14, 
+#     fontsize = 12
+#     ) 
 
-ax.set_ylabel('Pourcentage %', size = 18, font = bold_font)
-ax.set_xlabel('Mindstate', size = 18, font = bold_font)
+ax.set_ylabel('Pourcentage %', size = 24, font = bold_font)
+ax.set_xlabel('Mindstate', size = 24, font = bold_font)
 ax.set_ylim(0, 1)
 ax.set_xticks(
-    ticks = np.arange(0, 6, 1), 
-    labels = ["ON", "MW", "MB", "HALLU", "FORGOT", 'DISTRACTED'],
+    ticks = np.arange(0, 4, 1), 
+    labels = ["ON", "MW", "MB", "HALLU"],#, "FORGOT", 'DISTRACTED'],
     font = font, 
-    fontsize = 14)
+    fontsize = 16)
 ax.set_yticks(
     ticks = np.arange(0, 1.2, .2), 
     labels = np.arange(0, 120, 20), 
@@ -879,26 +1304,30 @@ ax.set_yticks(
     fontsize = 16)
 # ax.tick_params(axis='both', labelsize=16)
 sns.despine()
-title = """
-<Mindstate Percentage> according to the <Subtype>"""
-fig_text(
-   0.1, .93,
-   title,
-   fontsize=20,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-   ],
-   fig=fig
-)
+# title = """
+# <Mindstate Percentage> by <Subtype>"""
+# fig_text(
+#    0.1, .93,
+#    title,
+#    fontsize=20,
+#    ha='left', va='center',
+#    color="k", font=font,
+#    highlight_textprops=[
+#       {'font': bold_font},
+#       {'font': bold_font},
+#    ],
+#    fig=fig
+# )
+fig.tight_layout()
 
 plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
 
+# %% 
 #### Stats
 
-model_formula = 'percentage ~ C(mindstate, Treatment("MW_E"))*C(subtype, Treatment("HS"))'
+temp_df = df_mindstate.loc[df_mindstate.mindstate.isin(order)]
+
+model_formula = 'percentage ~ C(mindstate, Treatment("MW_H")) * C(subtype, Treatment("N1"))'
 model = smf.mixedlm(
     model_formula, 
     df_mindstate, 
@@ -972,7 +1401,7 @@ sns.stripplot(
     dodge = True,
     ax = ax,
     # palette = colors,
-    legend = True,
+    legend = None,
     jitter = True,
     alpha = .5
     )
@@ -1039,7 +1468,7 @@ hue_order = ['HS', 'N1', 'HI']
 # colors = ['#51b7ff','#a4abff']
 # colors = ['#565B69','#0070C0']
 
-fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize = (7, 12), sharex = True)
+fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize = (5, 12), sharex = True)
 
 y = 'miss'
 sns.pointplot(
@@ -1091,7 +1520,7 @@ sns.pointplot(
     hue = hue, 
     hue_order = hue_order, 
     dodge = .55,
-    palette = colors,
+    # palette = colors,
     # fill = False,
     legend = None,
     # gap = .15,
@@ -1113,7 +1542,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax[1],
-    palette = colors,
+    # palette = colors,
     legend = None,
     alpha = .5,
     size = 3
@@ -1134,7 +1563,7 @@ sns.pointplot(
     hue = hue, 
     hue_order = hue_order, 
     dodge = .55,
-    palette = colors,
+    # palette = colors,
     # fill = False,
     legend = None,
     # gap = .15,
@@ -1156,7 +1585,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax[2],
-    palette = colors,
+    # palette = colors,£
     legend = None,
     alpha = .5,
     size = 3
@@ -1197,20 +1626,20 @@ fig_text(
    ],
    fig=fig
 )
-plt.savefig(f"{behavpath}/miss_fa_rt_subtype.png", dpi=200)
+plt.savefig(f"{behavpath}/miss_fa_rt_subtype_n1.png", dpi=200)
 
 # %% M & FA - Subtype only
 
 this_df = sub_df[
-    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+    ['sub_id', 'mindstate','rt_go', 'rt_nogo', 'hits', 'miss',
      'correct_rejections', 'false_alarms']
-    ].groupby(['sub_id', 'subtype'], as_index = False).mean()
+    ].groupby(['sub_id', 'mindstate'], as_index = False).mean()
 
 data = this_df
 # x = 'mindstate'
-# order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
-hue = 'subtype'
-hue_order = ['HS', 'N1']
+hue_order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT', "MW_E"]
+hue = 'mindstate'
+# hue_order = ['HS', 'N1']
 # colors = ['#51b7ff','#a4abff']
 colors = ['#565B69','#0070C0']
 
@@ -1224,8 +1653,8 @@ sns.pointplot(
     y = y, 
     hue = hue, 
     hue_order = hue_order, 
-    dodge = .15,
-    palette = colors,
+    dodge = .55,
+    # palette = colors,
     legend = None,
     ax = ax[0],
     errorbar = "se",
@@ -1242,7 +1671,7 @@ sns.stripplot(
     hue_order = hue_order,  
     dodge = True,
     ax = ax[0],
-    palette = colors,
+    # palette = colors,
     legend = None,
     alpha = .5,
     size = 3
@@ -1264,8 +1693,8 @@ sns.pointplot(
     y = y, 
     hue = hue, 
     hue_order = hue_order, 
-    dodge = .15,
-    palette = colors,
+    dodge = .55,
+    # palette = colors,
     # fill = False,
     legend = None,
     # gap = .15,
@@ -1286,7 +1715,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax[1],
-    palette = colors,
+    # palette = colors,
     legend = None,
     alpha = .5,
     size = 3
@@ -1306,8 +1735,8 @@ sns.pointplot(
     y = y, 
     hue = hue, 
     hue_order = hue_order, 
-    dodge = .15,
-    palette = colors,
+    dodge = .55,
+    # palette = colors,
     # fill = False,
     legend = None,
     # gap = .15,
@@ -1328,7 +1757,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax[2],
-    palette = colors,
+    # palette = colors,
     legend = None,
     alpha = .5,
     size = 3
@@ -1339,38 +1768,38 @@ sns.stripplot(
 #     labels =  np.arange(0, 150, 50), 
 #     font = font, 
 #     size = 10)
-ax[2].set_ylabel("Reaction Time Go (ms)", font = bold_font, size = 15)
-ax[2].set_xticks(
-    ticks = [-0.10, 0.10], 
-    labels = ["CTL", "NT1"], 
-    size = 20,
-    font = font
-    )
-ax[2].set_xlabel("Subtype", font = bold_font, size = 15)
+# ax[2].set_ylabel("Reaction Time Go (ms)", font = bold_font, size = 15)
+# ax[2].set_xticks(
+#     ticks = [-0.10, 0.10], 
+#     labels = ["CTL", "NT1"], 
+#     size = 20,
+#     font = font
+#     )
+# ax[2].set_xlabel("Subtype", font = bold_font, size = 15)
 sns.despine(fig)
 fig.subplots_adjust(left=0.2, right=0.90, top=0.90, bottom=0.1)
 
-title = """<Misses>, <FA>, and <RT>
-according to the <Subtype> : [ <CTL>, <NT1> ]
-"""
-fig_text(
-   0.07, .94,
-   title,
-   fontsize=15,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-      {'color': colors[0], 'font': bold_font},
-      {'color': colors[1], 'font': bold_font}
-   ],
-   fig=fig
-)
+# title = """<Misses>, <FA>, and <RT>
+# # according to the <Subtype> : [ <CTL>, <NT1> ]
+# """
+# fig_text(
+#    0.07, .94,
+#    title,
+#    fontsize=15,
+#    ha='left', va='center',
+#    color="k", font=font,
+#    highlight_textprops=[
+#       {'font': bold_font},
+#       {'font': bold_font},
+#       {'font': bold_font},
+#       {'font': bold_font},
+#       {'color': colors[0], 'font': bold_font},
+#       {'color': colors[1], 'font': bold_font}
+#    ],
+#    fig=fig
+# )
 
-plt.savefig(f"{behavpath}/miss_fa_rt_subtype_noms.png", dpi=200)
+# plt.savefig(f"{behavpath}/miss_fa_rt_subtype_noms.png", dpi=200)
 
 # %% 
 
@@ -1391,4 +1820,23 @@ model_formula = 'percentage ~ C(mindstate, Treatment("MW_H")) * C(subtype, Treat
 model = smf.mixedlm(model_formula, data=df_mindstate, groups = df_mindstate['sub_id'])
 result = model.fit(method='bfgs')
 print(result.summary())
+
+# %% Explore Dynamics
+
+this_df = sub_df.copy()
+
+plt.figure()
+sns.pointplot(
+    data = sub_df,
+    x = 'total_block',
+    y = 'miss',
+    hue = 'subtype',
+    hue_order = ['HS', 'N1', 'HI'],
+    errorbar = "se",
+    alpha = .8,
+    palette = subtype_palette
+    )
+sns.despine()
+
+
 
