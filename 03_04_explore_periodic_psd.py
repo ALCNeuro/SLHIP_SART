@@ -9,8 +9,6 @@ Created on Fri Oct 25 16:33:14 2024
 """
 # %% Paths
 import os
-import pickle
-import scipy
 
 import numpy as np
 import pandas as pd
@@ -19,7 +17,6 @@ import statsmodels.formula.api as smf
 import SLHIP_config_ALC as config
 import seaborn as sns
 
-from mne.stats import permutation_cluster_test
 from glob import glob
 from scipy.stats import sem
 from scipy.stats import t
@@ -215,14 +212,15 @@ df = pd.DataFrame.from_dict(big_dic)
 
 # %% LME + PLOTS
 
-def analyze_and_plot(stage, channels):
+def analyze_and_plot(mindstate, channels):
     """
-    Performs cluster-based permutation testing and plots the results for the specified sleep stage and channels.
+    Performs cluster-based permutation testing and plots the results 
+    for the specified mindstate and channels.
 
     Parameters
     ----------
-    stage : str
-        The sleep stage to analyze (e.g., 'N2').
+    mindstate : str
+        The mindstate to analyze (e.g., 'ON').
     channels : list of str
         List of channels to analyze (e.g., ['F3', 'C3', 'O1']).
 
@@ -255,7 +253,7 @@ def analyze_and_plot(stage, channels):
         this_df = df.loc[
             (df.subtype.isin(subtypes_here)) &
             (df.channel == channel) &
-            (df.stage == stage)
+            (df.mindstate == mindstate)
         ]
 
         # Define the model formula
@@ -344,8 +342,8 @@ def analyze_and_plot(stage, channels):
         ax = axs[idx]
         for j, subtype in enumerate(subtypes_here):
             # Get the PSD and SEM data
-            psd_db = dic_psd[subtype][stage][channel]
-            sem_db = dic_sem[subtype][stage][channel]
+            psd_db = dic_psd[subtype][mindstate][channel]
+            sem_db = dic_sem[subtype][mindstate][channel]
 
             # Plot the PSD and SEM
             ax.plot(
@@ -394,102 +392,11 @@ def analyze_and_plot(stage, channels):
 
     # Add legend and overall title
     # axs[-1].legend(fontsize=12)
-    # plt.suptitle(f'Sleep Stage: {stage}', fontsize=18)
-    plt.savefig(os.path.join(fig_dir, f"peri_lme_hi_cns_{stage}.png"), dpi = 300)
+    # plt.suptitle(f'Sleep mindstate: {mindstate}', fontsize=18)
+    plt.savefig(os.path.join(fig_path, f"peri_lme_hi_cns_{mindstate}.png"), dpi = 300)
     plt.show()
 
 # Example usage:
 # Replace 'N2' with your desired sleep stage and ['F3', 'C3', 'O1'] with your desired channels
-analyze_and_plot(stage='N2', channels=['F3', 'C3', 'O1'])
-
-# %% 
-
-chan_names = ["F3", "C3", "O1"]
-subtypes_here = ["C1", "HI"]
-
-alpha_cluster_forming = 0.05
-n_conditions = 2
-n_observations = 80
-dfn = n_conditions - 1
-dfd = n_observations - n_conditions
-
-for i_st, stage in enumerate(stages) : 
-    
-    fig, ax = plt.subplots(
-        nrows=1, ncols=3, figsize=(12, 12), sharey=True, layout = "constrained")
-    for i_ch, channel in enumerate(chan_names) :
-        
-        hsi_power = np.dstack(
-            [i for i in big_dic[subtypes_here[0]][stage][channel]]
-            ).transpose((2, 1, 0))
-        ctl_power = np.dstack(
-            [i for i in big_dic[subtypes_here[1]][stage][channel]]
-            ).transpose((2, 1, 0))
-
-        alpha_cluster_forming = 0.05
-        n_conditions = 2
-        n_observations = 159
-        dfn = n_conditions - 1
-        dfd = n_observations - n_conditions
-
-        # Note: we calculate 1 - alpha_cluster_forming to get the critical value
-        # on the right tail
-        # f_thresh = scipy.stats.f.ppf(1 - alpha_cluster_forming, dfn=dfn, dfd=dfd)
-
-        F_obs, clusters, cluster_p_values, H0 = permutation_cluster_test(
-            [ctl_power, hsi_power],
-            out_type="mask",
-            n_permutations=1000,
-            # threshold=f_thresh,
-            # tail=0,
-            # adjacency = adjacency
-            )
-        
-        # Loop through each population and plot its PSD and SEM
-        for j, subtype in enumerate(subtypes_here):
-            # Convert power to dB
-            psd_db = dic_psd[subtype][stage][channel]
-        
-            # Calculate the SEM
-            sem_db = dic_sem[subtype][stage][channel]
-        
-            # Plot the PSD and SEM
-            ax[i_ch].plot(
-                freqs, 
-                psd_db, 
-                label = subtype, 
-                color = palette[j]
-                )
-            ax[i_ch].fill_between(
-                freqs, 
-                psd_db - sem_db, 
-                psd_db + sem_db, 
-                alpha= 0.3, 
-                color = palette[j]
-                )
-        
-        for i_c, c in enumerate(clusters):
-            # c = c[:, i_ch]
-            c = np.squeeze(c)
-            if np.any(c) :
-                if cluster_p_values[i_c] <= 0.05:
-                    h = ax[i_ch].axvspan(freqs[c].min(), freqs[c].max(), color="r", alpha=0.1)
-        
-        # Set the title and labels
-        ax[i_ch].set_title('Channel: ' + chan_names[i_ch])
-        ax[i_ch].set_xlabel('Frequency (Hz)')
-        ax[i_ch].set_xlim([0.5, 40])
-        # ax.set_ylim([-30, 60])
-        ax[i_ch].legend()
-        
-        # Add the condition name as a title for the entire figure
-        fig.suptitle('Condition: ' + stage)
-    axs[0].set_ylabel('Power', font = bold_font, fontsize = 18)
-    
-    plt.show(block = False)
-    # fig_savename = (fig_dir + "/flatPSD_plot_clusterperm" 
-    #                 + stage + ".png")
-    # plt.savefig(fig_savename, dpi = 300)
-
-
+analyze_and_plot(mindstate='ON', channels=['F3', 'C3', 'O1'])
 
