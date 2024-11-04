@@ -12,16 +12,15 @@ import os, numpy as np, pandas as pd
 import SLHIP_config_ALC as config
 
 import matplotlib.pyplot as plt
-from glob import glob
-from scipy.stats import sem
 import statsmodels.formula.api as smf
-
-from mne.stats import permutation_cluster_test
 import seaborn as sns
 
+from mne import Report
+from mne.stats import permutation_cluster_test
+from glob import glob
+from scipy.stats import sem
 from scipy.stats import t
 from scipy.ndimage import label
-
 from matplotlib.font_manager import FontProperties
 from matplotlib import font_manager 
 # font
@@ -47,11 +46,14 @@ subtypes = ["HS", "HI", "N1"]
 palette = ["#8d99ae", "#ffb703", "#d00000"]
 mindstates = ['ON', 'MW', 'HALLU', 'MB']
 
-midline = ["AFz", "Fz", "Cz", "CPz", "Pz", "POz", "Oz", "Iz"]
+# midline = ["AFz", "Fz", "Cz", "CPz", "Pz", "POz", "Oz", "Iz"]
+midline = ["Fz", "Cz", "Pz", "Oz"]
 
 freqs = np.linspace(0.5, 40, 159)
 
 # %% Loop
+
+gen_report = 0
 
 big_dic = {
     subtype : {
@@ -60,6 +62,9 @@ big_dic = {
             } for ms in mindstates
         } for subtype in subtypes
     }
+
+if gen_report :
+    report = Report(title = "Aperiodic by mindstates of all SLHIP subjects")
 
 for i, file in enumerate(aperiodic_files) :
     this_dic = pd.read_pickle(file)
@@ -70,6 +75,56 @@ for i, file in enumerate(aperiodic_files) :
     
     print(f"Processing : {sub_id}... [{i+1} / {len(aperiodic_files)}]")
     
+    if gen_report :
+        fig, axs = plt.subplots(
+            nrows=1, 
+            ncols=len(midline), 
+            figsize=(20, 6), 
+            sharey=True, 
+            layout = "constrained"
+            )
+        for i, channel in enumerate(midline):
+            ax = axs[i]
+
+            # Loop through each population and plot its PSD and SEM
+            for j, ms in enumerate(mindstates):
+                # Convert power to dB
+                psd_db = this_dic[ms][channel][0]
+
+                # Plot the PSD
+                ax.plot(
+                    freqs, 
+                    psd_db, 
+                    label = ms, 
+                    # color = palette[j],
+                    alpha = .7,
+                    linewidth = 2
+                    )
+
+            # Set the title and labels
+            ax.set_title('Channel: ' + channel)
+            ax.set_xlabel('Frequency (Hz)')
+            ax.set_xlim([0.5, 40])
+            # ax.set_ylim([-30, 60])
+            ax.legend()
+
+        # Add the condition name as a title for the entire figure
+        fig.suptitle(f'PSD at Midline, by Mindstates for {sub_id}')
+
+        # Add a y-axis label to the first subplot
+        axs[0].set_ylabel('Power (dB)')
+        for i in range(len(midline)) :
+            if i < len(midline)-1:
+                axs[i].get_legend().set_visible(False)
+                
+        report.add_figure(
+            fig = fig,
+            title = f"{sub_id}_PSD_MS",
+            image_format = 'PNG',
+            tags = subtype
+            )
+        plt.close()
+        
     for ms in mindstates:
         for channel in channels:
             if len(this_dic[ms][channel]) < 1 :
@@ -78,6 +133,9 @@ for i, file in enumerate(aperiodic_files) :
             else : 
                 big_dic[subtype][ms][channel].append(
                     10 * np.log10(this_dic[ms][channel][0]))
+
+if gen_report:
+    report.save(os.path.join(reports_path, "report_aperiodic.html"), overwrite = True, open_browser = True)            
     
 # %% 
 
@@ -167,7 +225,7 @@ fig.suptitle('Averaged MS - ST differences in Midline')
 # Add a y-axis label to the first subplot
 axs[0].set_ylabel('Power (dB)')
 for i in range(len(midline)) :
-    if i < len(midline):
+    if i < len(midline)-1:
         axs[i].get_legend().set_visible(False)
 
 # Adjust the layout of the subplots
@@ -176,6 +234,68 @@ for i in range(len(midline)) :
 # Show the plot
 plt.show()
 
+# %% Midline | Average Subtype
+
+fig, axs = plt.subplots(
+    nrows=1, 
+    ncols=len(midline), 
+    figsize=(20, 6), 
+    sharey=True, 
+    layout = "constrained"
+    )
+for i, channel in enumerate(midline):
+    ax = axs[i]
+
+    # Loop through each population and plot its PSD and SEM
+    for j, ms in enumerate(mindstates):
+        # Convert power to dB
+        psd_db = np.nanmean([dic_psd[subtype][ms][channel]
+            for subtype in subtypes
+            ], axis = 0)
+
+        # Calculate the SEM
+        sem_db = np.nanmean([dic_sem[subtype][ms][channel]
+            for subtype in subtypes
+            ], axis = 0)
+
+        # Plot the PSD and SEM
+        ax.plot(
+            freqs, 
+            psd_db, 
+            label = ms, 
+            # color = palette[j],
+            alpha = .7,
+            linewidth = 2
+            )
+        ax.fill_between(
+            freqs, 
+            psd_db - sem_db, 
+            psd_db + sem_db, 
+            alpha= 0.2, 
+            # color = palette[j]
+            )
+
+    # Set the title and labels
+    ax.set_title('Channel: ' + channel)
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_xlim([0.5, 40])
+    # ax.set_ylim([-30, 60])
+    ax.legend()
+
+# Add the condition name as a title for the entire figure
+fig.suptitle('Averaged Subtypes - Mindstates differences in Midline')
+
+# Add a y-axis label to the first subplot
+axs[0].set_ylabel('Power (dB)')
+for i in range(len(midline)) :
+    if i < len(midline)-1:
+        axs[i].get_legend().set_visible(False)
+
+# Adjust the layout of the subplots
+# plt.constrained_layout()
+
+# Show the plot
+plt.show()
 
 # %% Midline | MS 
 
@@ -233,7 +353,7 @@ for ms in mindstates:
     # Add a y-axis label to the first subplot
     axs[0].set_ylabel('Power (dB)')
     for i in range(len(midline)) :
-        if i < len(midline):
+        if i < len(midline)-1:
             axs[i].get_legend().set_visible(False)
 
     # Adjust the layout of the subplots

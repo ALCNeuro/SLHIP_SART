@@ -46,8 +46,10 @@ subtypes = ["HS", "N1", "HI"]
 channels = np.array(config.eeg_channels)
 mindstates = ['ON', 'MW', 'HALLU', 'MB']
 palette = ["#8d99ae", "#d00000", "#ffb703"]
-palette = ["#8d99ae", "#ffb703"]
+# palette = ["#8d99ae", "#ffb703"]
 freqs = np.linspace(0.5, 40, 159)
+# midline = ["AFz", "Fz", "Cz", "CPz", "Pz", "POz", "Oz", "Iz"]
+midline = ["Fz", "Cz", "Pz", "Oz"]
 
 # %% Loop
 
@@ -111,17 +113,148 @@ for subtype in subtypes :
 # with open(big_av_sem_savepath, 'wb') as handle:
 #     pickle.dump(dic_sem, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-# %% 
+# %% Midline | Average MS
+
+fig, axs = plt.subplots(
+    nrows=1, 
+    ncols=len(midline), 
+    figsize=(20, 6), 
+    sharey=True, 
+    layout = "constrained"
+    )
+for i, channel in enumerate(midline):
+    ax = axs[i]
+
+    # Loop through each population and plot its PSD and SEM
+    for j, subtype in enumerate(subtypes):
+        # Convert power to dB
+        psd_db = np.nanmean([dic_psd[subtype][ms][channel]
+            for ms in mindstates
+            ], axis = 0)
+
+        # Calculate the SEM
+        sem_db = np.nanmean([dic_sem[subtype][ms][channel]
+            for ms in mindstates
+            ], axis = 0)
+
+        # Plot the PSD and SEM
+        ax.plot(
+            freqs, 
+            psd_db, 
+            label = subtype, 
+            color = palette[j],
+            alpha = .7,
+            linewidth = 2
+            )
+        ax.fill_between(
+            freqs, 
+            psd_db - sem_db, 
+            psd_db + sem_db, 
+            alpha= 0.2, 
+            color = palette[j]
+            )
+
+    # Set the title and labels
+    ax.set_title('Channel: ' + channel)
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_xlim([0.5, 40])
+    # ax.set_ylim([-30, 60])
+    ax.legend()
+
+# Add the condition name as a title for the entire figure
+fig.suptitle('Averaged MS - ST differences in Midline')
+
+# Add a y-axis label to the first subplot
+axs[0].set_ylabel('Power (dB)')
+for i in range(len(midline)) :
+    if i < len(midline)-1:
+        axs[i].get_legend().set_visible(False)
+
+# Adjust the layout of the subplots
+# plt.constrained_layout()
+
+# Show the plot
+plt.show()
+
+# %% Midline | Average Subtype
+
+fig, axs = plt.subplots(
+    nrows=1, 
+    ncols=len(midline), 
+    figsize=(20, 6), 
+    sharey=True, 
+    layout = "constrained"
+    )
+for i, channel in enumerate(midline):
+    ax = axs[i]
+
+    # Loop through each population and plot its PSD and SEM
+    for j, ms in enumerate(mindstates):
+        # Convert power to dB
+        psd_db = np.nanmean([dic_psd[subtype][ms][channel]
+            for subtype in subtypes
+            ], axis = 0)
+
+        # Calculate the SEM
+        sem_db = np.nanmean([dic_sem[subtype][ms][channel]
+            for subtype in subtypes
+            ], axis = 0)
+
+        # Plot the PSD and SEM
+        ax.plot(
+            freqs, 
+            psd_db, 
+            label = ms, 
+            # color = palette[j],
+            alpha = .7,
+            linewidth = 2
+            )
+        ax.fill_between(
+            freqs, 
+            psd_db - sem_db, 
+            psd_db + sem_db, 
+            alpha= 0.2, 
+            # color = palette[j]
+            )
+
+    # Set the title and labels
+    ax.set_title('Channel: ' + channel)
+    ax.set_xlabel('Frequency (Hz)')
+    ax.set_xlim([0.5, 40])
+    # ax.set_ylim([-30, 60])
+    ax.legend()
+
+# Add the condition name as a title for the entire figure
+fig.suptitle('Averaged Subtypes - Mindstates differences in Midline')
+
+# Add a y-axis label to the first subplot
+axs[0].set_ylabel('Power (dB)')
+for i in range(len(midline)) :
+    if i < len(midline)-1:
+        axs[i].get_legend().set_visible(False)
+
+# Adjust the layout of the subplots
+# plt.constrained_layout()
+
+# Show the plot
+plt.show()
+
+# %% MIDLINE | MS
 
 # palette = ["#5e6472", "#faa307"]
 
 for mindstate in mindstates:
     # Create a new figure with three subplots
     fig, axs = plt.subplots(
-        nrows=1, ncols=3, figsize=(10, 16), sharey=True, layout = "constrained")
+        nrows=1, 
+        ncols=len(midline), 
+        figsize=(20, 6), 
+        sharey=True, 
+        layout = "constrained"
+        )
 
     # Loop through each channel
-    for i, channel in enumerate(channels):
+    for i, channel in enumerate(midline):
         ax = axs[i]
 
         # Loop through each population and plot its PSD and SEM
@@ -161,16 +294,16 @@ for mindstate in mindstates:
 
     # Add a y-axis label to the first subplot
     axs[0].set_ylabel('Power (dB)')
-    axs[0].get_legend().set_visible(False)
-    axs[1].get_legend().set_visible(False)
-
+    for i in range(len(midline)) :
+        if i < len(midline)-1:
+            axs[i].get_legend().set_visible(False)
     # Adjust the layout of the subplots
     # plt.constrained_layout()
 
     # Show the plot
     plt.show()
-    fig_savename = (f"{fig_path}/vhi_cns_flatPSD_plot_{mindstate}.png")
-    plt.savefig(fig_savename, dpi = 300)
+    # fig_savename = (f"{fig_path}/vhi_cns_flatPSD_plot_{mindstate}.png")
+    # plt.savefig(fig_savename, dpi = 300)
 
 # %% dics to DF
 

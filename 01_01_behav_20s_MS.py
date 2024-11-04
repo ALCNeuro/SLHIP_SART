@@ -1825,18 +1825,31 @@ print(result.summary())
 
 this_df = sub_df.copy()
 
-plt.figure()
+foi = 'rt_go'
+
+fig, ax = plt.subplots(nrows = 1, ncols = 1)
 sns.pointplot(
     data = sub_df,
     x = 'total_block',
-    y = 'miss',
+    y = foi,
     hue = 'subtype',
     hue_order = ['HS', 'N1', 'HI'],
     errorbar = "se",
     alpha = .8,
-    palette = subtype_palette
+    palette = subtype_palette,
+    linewidth = 3.5
+    )
+ax.set_ylabel(foi, font = bold_font, fontsize = 16)
+ax.set_xlabel("Blocks throughout the day", font = bold_font, fontsize = 16)
+ax.set_xticks(
+    np.linspace(0,7,8), 
+    ["1-AM", "2-AM", "3-AM", "4-AM",
+     "1-PM", "2-PM", "3-PM", "4-PM"], 
+    font = font, 
+    fontsize = 12
     )
 sns.despine()
+fig.tight_layout()
 
 
 

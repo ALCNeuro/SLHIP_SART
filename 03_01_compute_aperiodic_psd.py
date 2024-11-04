@@ -38,6 +38,8 @@ n_per_seg = n_fft
 n_overlap = int(n_per_seg/2)
 window = "hamming"
 
+threshold = dict(eeg = 300e-6)
+
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 
 # %% Loop
@@ -62,6 +64,7 @@ def compute_periodic_psd(file) :
         print(f"...processing {sub_id}")
         
         epochs = mne.read_epochs(file, preload = True)
+        epochs.drop_bad(threshold)
         # sf = epochs.info['sfreq']
         
         metadata = epochs.metadata
