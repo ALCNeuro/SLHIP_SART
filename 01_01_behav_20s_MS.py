@@ -202,6 +202,11 @@ for sub_id in sub_ids :
         df_probe = pd.DataFrame(
             temp_results['probe_res'], 
             columns = probe_col)
+        
+        if sub_id == 'sub_N1_015' and sesstype[i_file] == 'PM' :
+            df_probe = df_probe.loc[df_probe.nblock!=4]
+            df_test = df_test.loc[df_test.nblock!=4]
+        
         if any(df_probe.PQ1_respval.isna()) :
             df_probe.PQ1_respval.replace(np.nan, 0, inplace = True)
         
@@ -642,7 +647,7 @@ plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
 
 # %% Check stats individually 
 
-y = 'false_alarms'
+y = 'sleepiness'
 
 model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
@@ -1354,27 +1359,27 @@ y = 'sleepiness'
 hue = 'subtype'
 hue_order = ['HS', 'N1', 'HI']
 
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (14, 8))
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 6))
 
-sns.violinplot(
-    data = data,
-    x = x, 
-    order = order, 
-    y = y, 
-    hue = hue, 
-    hue_order = hue_order, 
-    dodge = True,
-    fill = True, 
-    inner = None,
-    cut = .1,
-    ax = ax,
-    # palette = colors,
-    legend = None,
-    # split = True,
-    gap = .05,
-    alpha = .2,
-    linecolor = "white"
-    )
+# sns.violinplot(
+#     data = data,
+#     x = x, 
+#     order = order, 
+#     y = y, 
+#     hue = hue, 
+#     hue_order = hue_order, 
+#     dodge = True,
+#     fill = True, 
+#     inner = None,
+#     cut = .1,
+#     ax = ax,
+#     palette = subtype_palette,
+#     legend = None,
+#     # split = True,
+#     gap = .05,
+#     alpha = .2,
+#     linecolor = "white"
+#     )
 
 sns.pointplot(
     data = data,
@@ -1384,7 +1389,7 @@ sns.pointplot(
     hue = hue, 
     hue_order = hue_order, 
     dodge = .55,
-    # palette = colors,
+    palette = subtype_palette,
     errorbar = 'se',
     legend = None,
     capsize = .02,
@@ -1400,7 +1405,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax,
-    # palette = colors,
+    palette = subtype_palette,
     legend = None,
     jitter = True,
     alpha = .5
@@ -1413,8 +1418,8 @@ ax.set_yticks(
 ax.set_ylabel("Sleepiness", font = bold_font, size = 18)
 ax.set_xticks(
     ticks = np.arange(0, 5, 1), 
-    labels = ["Focused", "Mind Wandering", "Mind Blanking", 
-              "Hallucination/Illusion", "Forgot"], 
+    labels = ["ON", "MW", "MB", 
+              "HALLU", "FORGOT"], 
     size = 20,
     font = font
     )
@@ -1422,22 +1427,22 @@ ax.set_ylim(1, 9)
 ax.tick_params(axis='both', labelsize=16)
 sns.despine()
 ax.set_xlabel("Mindstate", font = bold_font, size = 18)
-title = """Subjective <Sleepiness> rating according to the <Mindstates>, by <Subtype>"""
-fig_text(
-   0.1, .94,
-   title,
-   fontsize=20,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-      # {'color': colors[0], 'font': bold_font},
-      # {'color': colors[1], 'font': bold_font}
-   ],
-   fig=fig
-)
+# title = """Subjective <Sleepiness> rating according to the <Mindstates>, by <Subtype>"""
+# fig_text(
+#    0.1, .94,
+#    title,
+#    fontsize=20,
+#    ha='left', va='center',
+#    color="k", font=font,
+#    highlight_textprops=[
+#       {'font': bold_font},
+#       {'font': bold_font},
+#       {'font': bold_font},
+#       # {'color': colors[0], 'font': bold_font},
+#       # {'color': colors[1], 'font': bold_font}
+#    ],
+#    fig=fig
+# )
 fig.tight_layout(pad = 2)
 plt.savefig(f"{behavpath}/point_strip_sleepiness_ms_subtype.png", dpi=200)
 
@@ -1479,7 +1484,7 @@ sns.pointplot(
     hue = hue, 
     hue_order = hue_order, 
     dodge = .55,
-    # palette = colors,
+    palette = subtype_palette,
     legend = None,
     ax = ax[0],
     errorbar = "se",
@@ -1497,7 +1502,7 @@ sns.stripplot(
     hue_order = hue_order,  
     dodge = True,
     ax = ax[0],
-    # palette = colors,
+    palette = subtype_palette,
     legend = None,
     alpha = .5,
     size = 3
@@ -1520,7 +1525,7 @@ sns.pointplot(
     hue = hue, 
     hue_order = hue_order, 
     dodge = .55,
-    # palette = colors,
+    palette = subtype_palette,
     # fill = False,
     legend = None,
     # gap = .15,
@@ -1542,7 +1547,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax[1],
-    # palette = colors,
+    palette = subtype_palette,
     legend = None,
     alpha = .5,
     size = 3
@@ -1563,7 +1568,7 @@ sns.pointplot(
     hue = hue, 
     hue_order = hue_order, 
     dodge = .55,
-    # palette = colors,
+    palette = subtype_palette,
     # fill = False,
     legend = None,
     # gap = .15,
@@ -1585,7 +1590,7 @@ sns.stripplot(
     hue_order = hue_order, 
     dodge = True,
     ax = ax[2],
-    # palette = colors,£
+    palette = subtype_palette,
     legend = None,
     alpha = .5,
     size = 3
@@ -1821,11 +1826,11 @@ model = smf.mixedlm(model_formula, data=df_mindstate, groups = df_mindstate['sub
 result = model.fit(method='bfgs')
 print(result.summary())
 
-# %% Explore Dynamics
+# %% Explore Dynamics (DAY)
 
 this_df = sub_df.copy()
 
-foi = 'rt_go'
+foi = 'false_alarms'
 
 fig, ax = plt.subplots(nrows = 1, ncols = 1)
 sns.pointplot(
@@ -1850,6 +1855,46 @@ ax.set_xticks(
     )
 sns.despine()
 fig.tight_layout()
+
+# %% Explore Dynamics (SESSION)
+
+this_df = sub_df.copy()
+doubled_palette = dict(
+    HS=["#8d99ae", "#d2d7df"],
+    N1=["#d00000", "#ffbcbc"],
+    HI=["#ffb703", "#ffe4a0"],
+    )
+
+foi = 'sleepiness'
+
+fig, axs = plt.subplots(nrows = 1, ncols = 3, figsize = (12,5), sharex=True, sharey=True)
+for i_st, dis_subtype in enumerate(subtypes) :
+    ax = axs[i_st]
+    plot_df = sub_df.loc[sub_df.subtype == dis_subtype] 
+   
+    sns.pointplot(
+        data = plot_df,
+        x = 'nblock',
+        y = foi,
+        hue = 'daytime',
+        hue_order = ['AM', 'PM'],
+        errorbar = "se",
+        alpha = .8,
+        palette = doubled_palette[dis_subtype],
+        linewidth = 3,
+        ax = ax,
+        capsize = .02
+        )
+    ax.set_ylabel(foi, font = bold_font, fontsize = 16)
+    ax.set_xlabel("Blocks throughout the day", font = bold_font, fontsize = 16)
+    ax.set_xticks(
+        np.linspace(0,3,4), 
+        ["1", "2", "3", "4"], 
+        font = font, 
+        fontsize = 12
+        )
+    sns.despine()
+    fig.tight_layout()
 
 
 

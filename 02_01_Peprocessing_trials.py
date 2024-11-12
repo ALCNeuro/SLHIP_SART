@@ -41,7 +41,7 @@ import matplotlib.pyplot as plt
 import warnings
 
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 # matplotlib.use('QtAgg')
 
 #### Paths
