@@ -1896,5 +1896,9 @@ for i_st, dis_subtype in enumerate(subtypes) :
     sns.despine()
     fig.tight_layout()
 
-
+figname = os.path.join(
+    behavpath, 
+    f"betweenblocks_ampm_{foi}.png"
+    )
+plt.savefig(figname, dpi=100)
 

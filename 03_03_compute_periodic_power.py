@@ -5,7 +5,7 @@ Created on Thu Oct 24 16:09:25 2024
 
 @author: arthurlecoz
 
-03_01_compute_periodic_psd.py
+03_01_compute_periodic_power.py
 """
 # %% Paths
 import mne 

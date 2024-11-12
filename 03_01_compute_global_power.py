@@ -5,7 +5,7 @@ Created on Thu Oct 24 16:10:39 2024
 
 @author: arthurlecoz
 
-03_03_compute_aperiodic_psd
+03_01_compute_global_power.py
 
 """
 # %% Paths

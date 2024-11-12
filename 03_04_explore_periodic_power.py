@@ -5,7 +5,7 @@ Created on Fri Oct 25 16:33:14 2024
 
 @author: arthurlecoz
 
-03_04_explore_periodic_psd.py
+03_04_explore_periodic_power.py
 """
 # %% Paths
 import os

@@ -5,7 +5,7 @@ Created on Fri Oct 25 14:29:28 2024
 
 @author: arthurlecoz
 
-03_02_explore_aperiodic_psd.py
+03_02_explore_global_power.py
 """
 # %% Paths
 import os, numpy as np, pandas as pd
