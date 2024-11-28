@@ -177,7 +177,7 @@ def calculate_behavioral_metrics(interprobe_mat):
     return hits, miss, cr, fa, rtgo, rtnogo
 
 
-# %% 
+# %% Loop
 
 columns = ['sub_id', 'subtype', 'nblock', 'probe', 
            'rt_go', 'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms', 
@@ -259,6 +259,8 @@ df.to_csv(f"{behavpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
 # %% DF Manip
 
 # sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS')]
+df = df.loc[df.sub_id != 'sub_HI_005']
+
 sub_df = df.loc[(df.mindstate != 'MISS')]
 
 total_block = []
@@ -480,7 +482,7 @@ data = this_df
 hue = 'subtype'
 hue_order = ['HS', 'N1', 'HI']
 
-fig, ax = plt.subplots(nrows = 4, ncols = 1, figsize = (3, 10), sharex = True)
+fig, ax = plt.subplots(nrows = 4, ncols = 1, figsize = (2.5, 8), sharex = True)
 
 y = 'sleepiness'
 sns.pointplot(
@@ -493,7 +495,7 @@ sns.pointplot(
     legend = None,
     ax = ax[0],
     errorbar = "se",
-    capsize = .1,
+    capsize = .02,
     ls = "none",
     alpha = .8
     )
@@ -531,7 +533,7 @@ sns.pointplot(
     legend = None,
     ax = ax[1],
     errorbar = "se",
-    capsize = .1,
+    capsize = .02,
     ls = "none",
     alpha = .8
     )
@@ -569,7 +571,7 @@ sns.pointplot(
     legend = None,
     ax = ax[2],
     errorbar = "se",
-    capsize = .1,
+    capsize = .02,
     ls = "none",
     alpha = .8
     )
@@ -605,7 +607,7 @@ sns.pointplot(
     legend = None,
     ax = ax[3],
     errorbar = "se",
-    capsize = .1,
+    capsize = .02,
     ls = "none",
     alpha = .8
     )
@@ -647,7 +649,7 @@ plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
 
 # %% Check stats individually 
 
-y = 'sleepiness'
+y = 'miss'
 
 model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
@@ -1332,7 +1334,7 @@ plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
 
 temp_df = df_mindstate.loc[df_mindstate.mindstate.isin(order)]
 
-model_formula = 'percentage ~ C(mindstate, Treatment("MW_H")) * C(subtype, Treatment("N1"))'
+model_formula = 'percentage ~ C(mindstate, Treatment("ON")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(
     model_formula, 
     df_mindstate, 
@@ -1342,7 +1344,7 @@ model = smf.mixedlm(
 model_result = model.fit()
 print(model_result.summary())
 
-# %% Sleepiness
+# %% Sleepiness [MS x ST Diff]
 
 #### Plot 
 this_df = sub_df[
@@ -1458,7 +1460,7 @@ result = model.fit(method='bfgs')
 
 print(result.summary())
 
-# %% Misses & False Alarms
+# %% Misses & False Alarms [MSxST diff]
 
 this_df = sub_df[
     ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
@@ -1633,7 +1635,7 @@ fig_text(
 )
 plt.savefig(f"{behavpath}/miss_fa_rt_subtype_n1.png", dpi=200)
 
-# %% M & FA - Subtype only
+# %% M & FA - MS only
 
 this_df = sub_df[
     ['sub_id', 'mindstate','rt_go', 'rt_nogo', 'hits', 'miss',
@@ -1870,6 +1872,7 @@ foi = 'sleepiness'
 fig, axs = plt.subplots(nrows = 1, ncols = 3, figsize = (12,5), sharex=True, sharey=True)
 for i_st, dis_subtype in enumerate(subtypes) :
     ax = axs[i_st]
+    ax.set_title(dis_subtype, font=bold_font, fontsize=14, color=subtype_palette[i_st])
     plot_df = sub_df.loc[sub_df.subtype == dis_subtype] 
    
     sns.pointplot(
@@ -1902,3 +1905,128 @@ figname = os.path.join(
     )
 plt.savefig(figname, dpi=100)
 
+# %% Dynamics Mindstates
+
+coi = ['sub_id', 'subtype', 'sleepiness', 'mindstate', 
+       'percentage', 'daytime', 'nblock']
+
+dic = {c : [] for c in coi}
+
+for sub_id in sub_df.sub_id.unique() :    
+    this_df = sub_df.loc[sub_df['sub_id'] == sub_id]
+    for dt in this_df.daytime.unique() :
+        df_dt = this_df.loc[sub_df['daytime'] == dt]
+        for bloc in df_dt.nblock.unique() :
+            df_bloc = df_dt.loc[df_dt['nblock'] == bloc]
+            for mindstate in ['ON', 'MW_I', 'MW_E', 'MW_H', 'MB', 'FORGOT'] :
+                dic['sub_id'].append(sub_id)
+                dic['subtype'].append(sub_id.split('_')[1])
+                dic['nblock'].append(bloc)
+                dic['daytime'].append(dt)
+                dic['mindstate'].append(mindstate)
+                dic['percentage'].append(
+                    len(df_bloc.mindstate.loc[
+                        (df_bloc['mindstate'] == mindstate)]
+                        )/len(df_bloc.mindstate))
+                dic['sleepiness'].append(
+                    df_bloc.sleepiness.loc[
+                        (df_bloc['mindstate'] == mindstate)].mean()
+                        )
+
+df_mindstate_bloc = pd.DataFrame.from_dict(dic)
+
+this_df = df_mindstate_bloc.loc[
+    df_mindstate_bloc.mindstate.isin(['ON', 'MW_I','MW_H', 'MB'])
+    ]
+
+doubled_ms_palette = dict(
+    AM=["#46964D", "#E78B42", "#70A1C9", "#D50000"],
+    PM=["#9ED1A2", "#F1BD93", "#C4D9E9", "#FF9999"]
+    )
+
+ms_palette = ["#46964D", "#E78B42", "#70A1C9", "#D50000"]
+
+foi = 'percentage'
+
+fig, axs = plt.subplots(nrows = 1, ncols = 3, figsize = (12,5), sharex=True, sharey=True)
+for i_st, dis_subtype in enumerate(subtypes) :
+    ax = axs[i_st]
+    ax.set_title(dis_subtype, font=bold_font, fontsize=14, color=subtype_palette[i_st])
+    for session in ['AM', 'PM'] :
+    
+        plot_df = this_df.loc[
+            (this_df.subtype == dis_subtype)
+            & (this_df.daytime == session)
+            ] 
+       
+        sns.pointplot(
+            data = plot_df,
+            x = 'nblock',
+            y = foi,
+            hue = 'mindstate',
+            hue_order = ['ON', 'MW_I','MB', 'MW_H'],
+            errorbar = "se",
+            alpha = .8,
+            palette = doubled_ms_palette[session],
+            linewidth = 3,
+            ax = ax,
+            capsize = .02,
+            legend = None
+            )
+        ax.set_ylabel(foi, font = bold_font, fontsize = 16)
+        ax.set_xlabel("Blocks throughout the day", font = bold_font, fontsize = 16)
+        ax.set_xticks(
+            np.linspace(0,3,4), 
+            ["1", "2", "3", "4"], 
+            font = font, 
+            fontsize = 12
+            )
+        sns.despine()
+        
+fig.tight_layout()
+
+figname = os.path.join(
+    behavpath, 
+    "betweenblocks_ampm_mindstate.png"
+    )
+plt.savefig(figname, dpi=100)
+
+
+# %% Inspection HI (court/long)
+
+plt.figure(); 
+sns.pointplot(
+    data=sub_df.loc[sub_df.subtype=='HI'], 
+    y='sleepiness', 
+    x='sub_id', 
+    linestyle='none', 
+    errorbar='se', 
+    capsize=.05
+    )
+plt.figure(); 
+sns.pointplot(
+    data=sub_df.loc[sub_df.subtype=='HI'], 
+    y='false_alarms', 
+    x='sub_id', 
+    linestyle='none', 
+    errorbar='se', 
+    capsize=.05
+    )
+plt.figure(); 
+sns.pointplot(
+    data=sub_df.loc[sub_df.subtype=='HI'], 
+    y='miss', 
+    x='sub_id', 
+    linestyle='none', 
+    errorbar='se', 
+    capsize=.05
+    )
+plt.figure(); 
+sns.pointplot(
+    data=sub_df.loc[sub_df.subtype=='HI'], 
+    y='rt_go', 
+    x='sub_id', 
+    linestyle='none', 
+    errorbar='se', 
+    capsize=.05
+    )

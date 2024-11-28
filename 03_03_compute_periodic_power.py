@@ -5,7 +5,7 @@ Created on Thu Oct 24 16:09:25 2024
 
 @author: arthurlecoz
 
-03_01_compute_periodic_power.py
+03_03_compute_periodic_power.py
 """
 # %% Paths
 import mne 
@@ -114,6 +114,9 @@ def compute_periodic_psd(file) :
                             this_power.copy().pick(channel).get_data()), 
                             freqs, 0.075)[:, 1]
                         
+                        if not psd.shape:
+                            input('inspect')
+                        
                         if np.any(psd < 0) :
                             for id_0 in np.where(psd<0)[0] :
                                 psd[id_0] = abs(psd).min()
@@ -121,6 +124,9 @@ def compute_periodic_psd(file) :
                         fm = FOOOF(peak_width_limits = [.5, 4], aperiodic_mode="fixed")
                         fm.add_data(freqs, psd)
                         fm.fit()
+                        
+                        if fm.r_squared_ < .95 : continue
+                        if fm.error_ > .1 : continue
                         
                         init_ap_fit = gen_aperiodic(
                             fm.freqs, 
@@ -141,7 +147,7 @@ if __name__ == '__main__':
     eeg_files = files
     
     # Set up a pool of worker processes
-    pool = multiprocessing.Pool(processes = 4)
+    pool = multiprocessing.Pool(processes = 4   )
     
     # Process the EEG files in parallel
     pool.map(compute_periodic_psd, eeg_files)

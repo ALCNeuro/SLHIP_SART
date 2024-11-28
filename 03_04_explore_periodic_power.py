@@ -72,7 +72,7 @@ for i, file in enumerate(periodic_files) :
     
     for mindstate in mindstates:
         for channel in channels:
-            if len(this_dic[mindstate][channel]) < 1 :
+            if len(this_dic[mindstate][channel]) < 1 or not this_dic[mindstate][channel][0].shape:
                 big_dic[subtype][mindstate][channel].append(
                     np.nan * np.empty(159))
             else : 
