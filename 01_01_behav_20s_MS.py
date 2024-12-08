@@ -1125,26 +1125,26 @@ plt.show()
 # %% ready fig ms %
 
 # coi = ['sub_id', 'subtype', 'mindstate', 'percentage']
-coi = ['sub_id', 'subtype', 'sleepiness', 'mindstate', 'percentage']
+coi = ['sub_id', 'subtype', 'daytime', 'mindstate', 'percentage']
 dic = {c : [] for c in coi}
 
 for sub_id in sub_df.sub_id.unique() :    
     this_df = sub_df.loc[sub_df['sub_id'] == sub_id]
-    # for dt in this_df.daytime.unique() :
-    #     df_dt = this_df.loc[sub_df['daytime'] == dt]
-    for mindstate in ['ON', 'MW_I', 'MW_E', 'MW_H', 'MB', 'FORGOT'] :
-        dic['sub_id'].append(sub_id)
-        dic['subtype'].append(sub_id.split('_')[1])
-        # dic['daytime'].append(dt)
-        dic['mindstate'].append(mindstate)
-        dic['percentage'].append(
-            len(this_df.mindstate.loc[
-                (this_df['mindstate'] == mindstate)]
-                )/len(this_df.mindstate))
-        dic['sleepiness'].append(
-            this_df.sleepiness.loc[
-                (this_df['mindstate'] == mindstate)].mean()
-                )
+    for dt in this_df.daytime.unique() :
+        df_dt = this_df.loc[sub_df['daytime'] == dt]
+        for mindstate in ['ON', 'MW_I', 'MW_E', 'MW_H', 'MB', 'FORGOT'] :
+            dic['sub_id'].append(sub_id)
+            dic['subtype'].append(sub_id.split('_')[1])
+            dic['daytime'].append(dt)
+            dic['mindstate'].append(mindstate)
+            dic['percentage'].append(
+                len(df_dt.mindstate.loc[
+                    (df_dt['mindstate'] == mindstate)]
+                    )/len(df_dt.mindstate))
+            # dic['sleepiness'].append(
+            #     this_df.sleepiness.loc[
+            #         (this_df['mindstate'] == mindstate)].mean()
+            #         )
 
 df_mindstate = pd.DataFrame.from_dict(dic)
 
@@ -1334,11 +1334,28 @@ plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
 
 temp_df = df_mindstate.loc[df_mindstate.mindstate.isin(order)]
 
-model_formula = 'percentage ~ C(mindstate, Treatment("ON")) * C(subtype, Treatment("HS"))'
+model_formula = 'percentage ~ C(mindstate, Treatment("MB")) * C(subtype, Treatment("N1"))'
 model = smf.mixedlm(
     model_formula, 
     df_mindstate, 
     groups=df_mindstate['sub_id'], 
+    missing = 'drop'
+    )
+model_result = model.fit()
+print(model_result.summary())
+
+# %% 
+
+#### Stats
+
+temp_df = df_mindstate.loc[df_mindstate.mindstate.isin(order)]
+temp_df = df_mindstate.loc[df_mindstate.subtype == 'N1']
+
+model_formula = 'percentage ~ C(mindstate, Treatment("MB")) * C(daytime, Treatment("AM"))'
+model = smf.mixedlm(
+    model_formula, 
+    temp_df, 
+    groups=temp_df['sub_id'], 
     missing = 'drop'
     )
 model_result = model.fit()

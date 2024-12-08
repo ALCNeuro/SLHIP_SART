@@ -11,13 +11,18 @@ Created on Wed Nov 27 17:19:47 2024
 # %% Paths & Packages
 
 import os
+import mne
+
 import numpy as np
 import pandas as pd
-import mne
-from glob import glob
+import seaborn as sns
+import matplotlib.pyplot as plt
 
+from glob import glob
 from matplotlib.font_manager import FontProperties
 from matplotlib import font_manager
+
+from tqdm import tqdm
  
 # font
 personal_path = '/Users/arthurlecoz/Library/Mobile Documents/com~apple~CloudDocs/Desktop/A_Thesis/Others/Fonts/aptos-font'
@@ -127,7 +132,6 @@ mne.viz.plot_compare_evokeds(
     )
 
 # %% Topographies
-import matplotlib.pyplot as plt
 
 times = [0.3, 0.4, 0.5]  # Times in seconds
 for group in difference_evokeds:
@@ -206,8 +210,6 @@ for group, evoked_list in difference_evokeds_subjects.items():
 
 # %% Plot
 
-import seaborn as sns
-
 fig, ax = plt.subplots(figsize=(10, 6))
 
 for group in ['HS', 'HI', 'N1']:
@@ -260,6 +262,7 @@ for fname in evokeds_files:
     session = parts[3]  # 'AM', 'PM'
 
     sub_id = f"{group}_{sub_num}"
+    if 'HI_005' in fname : continue
 
     evokeds = mne.read_evokeds(fname, verbose='error')
 
@@ -307,3 +310,174 @@ for sub_id in subject_evokeds:
 # Create the DataFrame
 df = pd.DataFrame.from_dict(big_dic)
 
+# %% Stats Uncorrected
+
+# Function to perform statistical analysis and plotting using LMMs
+def analyze_and_plot_erp_uncorrected(channel, groups_to_compare):
+    """
+    Performs statistical analysis using linear mixed models at each time point and plots the ERP data.
+    No correction for multiple comparisons is applied.
+
+    Parameters
+    ----------
+    channel : str
+        The channel to analyze (e.g., 'Pz').
+    groups_to_compare : list of str
+        List of two group names to compare (e.g., ['HS', 'HI']).
+
+    Returns
+    -------
+    Plots the ERP comparison with significant time points highlighted (uncorrected).
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import statsmodels.formula.api as smf
+    from scipy.stats import t
+    import seaborn as sns
+    from scipy.ndimage import label
+
+    group1, group2 = groups_to_compare
+
+    # Filter the DataFrame for the specified groups and channel
+    df_filtered = df[
+        df['group'].isin([group1, group2]) &
+        (df['channel'] == channel)
+    ].copy()
+
+    # Optionally, recode group as categorical with group1 as the reference
+    df_filtered['group'] = pd.Categorical(df_filtered['group'], categories=[group1, group2])
+
+    # Get the list of unique time points
+    time_points = df_filtered['time_point'].unique()
+    time_points.sort()
+
+    # Prepare arrays to store t-values and p-values
+    t_values = []
+    p_values = []
+
+    # Define the model formula
+    # Adjust the formula if you have additional covariates (e.g., age, gender)
+    # For example: 'amplitude ~ C(group) + age + C(gender)'
+    model_formula = 'amplitude ~ C(group)'
+
+    # Fit LMM at each time point
+    print("Fitting LMMs at each time point...")
+    for time_point in tqdm(time_points):
+        df_time = df_filtered[df_filtered['time_point'] == time_point]
+        # Fit the LMM
+        model = smf.mixedlm(model_formula, df_time, groups=df_time['sub_id'], missing='drop')
+        try:
+            model_result = model.fit(reml=False)
+            # Extract t-value and p-value for the group effect
+            coef_name = 'C(group)[T.{0}]'.format(group2)
+            t_value = model_result.tvalues[coef_name]
+            p_value = model_result.pvalues[coef_name]
+        except Exception as e:
+            print(f"Error at time {time_point}: {e}")
+            t_value = np.nan
+            p_value = np.nan
+        t_values.append(t_value)
+        p_values.append(p_value)
+
+    t_values = np.array(t_values)
+    p_values = np.array(p_values)
+
+    # Identify significant time points (uncorrected)
+    alpha = 0.05  # Significance level
+    significant_time_points = p_values < alpha
+    clusters, num_clusters = label(significant_time_points)
+
+    # Prepare data for plotting
+    times = time_points
+    data_group1 = []
+    data_group2 = []
+    for sub_id in df_filtered['sub_id'].unique():
+        group = df_filtered[df_filtered['sub_id'] == sub_id]['group'].iloc[0]
+        df_sub = df_filtered[df_filtered['sub_id'] == sub_id]
+        # Average over sessions
+        df_sub_grouped = df_sub.groupby('time_point')['amplitude'].mean()
+        # Ensure amplitudes are aligned with times
+        df_sub_grouped = df_sub_grouped.reindex(times)
+        amplitudes = df_sub_grouped.values
+        if group == group1:
+            data_group1.append(amplitudes)
+        elif group == group2:
+            data_group2.append(amplitudes)
+
+    data_group1 = np.array(data_group1)
+    data_group2 = np.array(data_group2)
+
+    # Compute mean and SEM
+    mean_group1 = np.nanmean(data_group1, axis=0)
+    sem_group1 = np.nanstd(data_group1, axis=0, ddof=1) / np.sqrt(data_group1.shape[0])
+
+    mean_group2 = np.nanmean(data_group2, axis=0)
+    sem_group2 = np.nanstd(data_group2, axis=0, ddof=1) / np.sqrt(data_group2.shape[0])
+
+    # Plotting
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    colors = dict(
+        HS = "#8d99ae", 
+        HI = "#ffb703", 
+        N1 = "#d00000"
+        )
+
+    ax.plot(times, mean_group1, label=group1, color=colors[group1], linewidth=2)
+    ax.fill_between(times, mean_group1 - sem_group1, mean_group1 + sem_group1, color=colors[group1], alpha=0.3)
+
+    ax.plot(times, mean_group2, label=group2, color=colors[group2], linewidth=2)
+    ax.fill_between(times, mean_group2 - sem_group2, mean_group2 + sem_group2, color=colors[group2], alpha=0.3)
+
+    # Highlight significant time points
+    y_max = np.max([mean_group1 + sem_group1, mean_group2 + sem_group2])
+    y_min = np.min([mean_group1 - sem_group1, mean_group2 - sem_group2])
+    y_range = y_max - y_min
+    significance_line_y = y_max + 0.05 * y_range
+
+    # For each cluster of significant time points, plot a horizontal line
+    for i in range(1, num_clusters + 1):
+        cluster_indices = np.where(clusters == i)[0]
+        cluster_times = times[cluster_indices]
+        if len(cluster_times) > 0:
+            ax.hlines(y=significance_line_y, xmin=cluster_times[0], xmax=cluster_times[-1],
+                      color='k', linewidth=2)
+            # Optionally, add a small vertical line at each end
+            ax.vlines(x=cluster_times[0], ymin=significance_line_y - 0.01 * y_range,
+                      ymax=significance_line_y + 0.01 * y_range, color='k', linewidth=2)
+            ax.vlines(x=cluster_times[-1], ymin=significance_line_y - 0.01 * y_range,
+                      ymax=significance_line_y + 0.01 * y_range, color='k', linewidth=2)
+
+    ax.set_xlabel('Time (s)', fontsize=14)
+    ax.set_ylabel('Amplitude (V)', fontsize=14)
+    ax.set_title(f'ERP Comparison at {channel} between {group1} and {group2}\n(Significant time points uncorrected)', fontsize=16)
+    ax.legend()
+    ax.axvline(0, color='black', linestyle='--')
+    ax.axhline(0, color='black', linestyle='--')
+    sns.despine()
+    plt.show()
+    # Optionally, save the figure
+    # fig.savefig(f"erp_comparison_uncorrected_{group1}_vs_{group2}_{channel}.png", dpi=300)
+
+    # Optionally, plot t-values over time
+    fig_t, ax_t = plt.subplots(figsize=(10, 6))
+    ax_t.plot(times, t_values, color='purple', label='t-values')
+    # Determine critical t-value for the significance level
+    df_resid = model_result.df_resid
+    critical_t = t.ppf(1 - alpha / 2, df_resid)
+    ax_t.axhline(critical_t, color='red', linestyle='--', label='Critical t-value')
+    ax_t.axhline(-critical_t, color='red', linestyle='--')
+    ax_t.set_xlabel('Time (s)', fontsize=14)
+    ax_t.set_ylabel('t-value', fontsize=14)
+    ax_t.set_title(f't-values over time for {group1} vs {group2}', fontsize=16)
+    ax_t.legend()
+    sns.despine()
+    plt.show()
+    # Optionally, save the figure
+    # fig_t.savefig(f"tvalues_{group1}_vs_{group2}_{channel}.png", dpi=300)
+    
+# %% 
+# Example usage:
+analyze_and_plot_erp_uncorrected(channel='Pz', groups_to_compare=['HS', 'HI'])
+analyze_and_plot_erp_uncorrected(channel='Pz', groups_to_compare=['HS', 'N1'])
+analyze_and_plot_erp_uncorrected(channel='Pz', groups_to_compare=['HI', 'N1'])
