@@ -59,8 +59,8 @@ threshold = dict(eeg = 400e-6)
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 
 coi = ['sub_id', 'subtype', 'channel', 'mindstate', 
-       'abs_delta','abs_theta','abs_alpha','abs_beta','abs_gamma',
-       'rel_delta','rel_theta','rel_alpha','rel_beta','rel_gamma']
+   'abs_delta','abs_theta','abs_alpha','abs_beta','abs_gamma',
+   'rel_delta','rel_theta','rel_alpha','rel_beta','rel_gamma']
 
 cols_power = [
     'abs_delta','abs_theta','abs_alpha','abs_beta','abs_gamma',
