@@ -147,7 +147,7 @@ if __name__ == '__main__':
     eeg_files = files
     
     # Set up a pool of worker processes
-    pool = multiprocessing.Pool(processes = 4   )
+    pool = multiprocessing.Pool(processes = 4)
     
     # Process the EEG files in parallel
     pool.map(compute_periodic_psd, eeg_files)

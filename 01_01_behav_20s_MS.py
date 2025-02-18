@@ -259,7 +259,7 @@ df.to_csv(f"{behavpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
 # %% DF Manip
 
 # sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS')]
-df = df.loc[df.sub_id != 'sub_HI_005']
+df = df.loc[df.sub_id != 'sub_HI_006']
 
 sub_df = df.loc[(df.mindstate != 'MISS')]
 
@@ -649,9 +649,9 @@ plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
 
 # %% Check stats individually 
 
-y = 'miss'
+y = 'rt_go'
 
-model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
+model_formula = f'{y} ~ C(subtype, Treatment("N1"))'
 model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
 model_result = model.fit()
 print(f"Statistics for {y}:\n{model_result.summary()}")
@@ -1236,7 +1236,9 @@ print(model_result.summary())
 
 # palette = ['#51b7ff','#a4abff']
 # palette = ['#565B69','#0070C0']
-data = df_mindstate
+data = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
+    ['sub_id', 'subtype', 'mindstate'], as_index = False
+    ).mean()
 y = 'percentage'
 x = "mindstate"
 order = ['ON', 'MW_I', 'MB', 'MW_H']#, 'FORGOT', 'MW_E']
@@ -1282,7 +1284,7 @@ sns.stripplot(
     hue = hue,
     order = order,
     hue_order = hue_order,
-    alpha = 0.5,
+    alpha = 0.2,
     dodge = True,
     legend = None,
     palette = subtype_palette
@@ -1332,13 +1334,16 @@ plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
 # %% 
 #### Stats
 
-temp_df = df_mindstate.loc[df_mindstate.mindstate.isin(order)]
+temp_df = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
+    ['sub_id', 'subtype', 'mindstate'], as_index = False
+    ).mean()
+temp_df = temp_df.loc[temp_df.mindstate.isin(order)]
 
-model_formula = 'percentage ~ C(mindstate, Treatment("MB")) * C(subtype, Treatment("N1"))'
+model_formula = 'percentage ~ C(mindstate, Treatment("MB")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(
     model_formula, 
-    df_mindstate, 
-    groups=df_mindstate['sub_id'], 
+    temp_df, 
+    groups=temp_df['sub_id'], 
     missing = 'drop'
     )
 model_result = model.fit()

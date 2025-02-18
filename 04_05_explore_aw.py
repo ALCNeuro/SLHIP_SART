@@ -820,7 +820,7 @@ fig.tight_layout()
 
 # %% Topo | LME - ST ∆ > HS effect
 
-interest = 'ptp'
+interest = 'density'
 
 model = f"{interest} ~ C(subtype, Treatment('HS'))" 
 

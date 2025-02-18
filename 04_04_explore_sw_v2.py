@@ -259,7 +259,7 @@ if print_stats :
            
 # %% Topo | Density | HS, NT1, HI
 
-feature = 'dslope_20'
+feature = 'density_20'
 
 list_values = []
 for i_ms, mindstate in enumerate(mindstates) :
@@ -373,9 +373,76 @@ figsavename = os.path.join(
     )
 plt.savefig(figsavename, dpi = 300)
 
-# %% Topo | Density | HS, NT1, HI | Mindstate
+# %% NOT ENOUGH DATA LME Mindstate | Feature | HS, NT1, HI
 
-feature = 'uslope_20'
+interest = 'density_20'
+contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW")]
+
+fig, ax = plt.subplots(
+    nrows = len(subtypes), 
+    ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
+    figsize = (18,6),
+    )
+for i_s, subtype in enumerate(subtypes) :
+    this_ax = ax[i_s]
+    for i_c, contrast in enumerate(contrasts) :
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = mean_df.loc[
+            (mean_df.mindstate.isin(contrast))
+            & (mean_df.subtype == subtype)
+            ]
+        
+        model = f"{interest} ~ C(mindstate, Treatment('{contrast[0]}'))" 
+    
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+            mdf = md.fit()
+            
+            if f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]" not in mdf.tvalues.index :
+                temp_tval.append(np.nan)
+                temp_pval.append(1)
+                chan_l.append(chan)
+            else : 
+                temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            for pos in np.where(np.isnan(temp_tval))[0] :
+                temp_tval[pos] = np.nanmean(temp_tval)
+             
+        # _, corrected_pval = fdrcorrection(temp_pval)
+        
+        divider = make_axes_locatable(this_ax[i_c])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = temp_tval,
+            pos = epochs.info,
+            axes = this_ax[i_c],
+            contours = 3,
+            mask = np.asarray(temp_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=6),
+            cmap = "viridis",
+            vlim = (-2.5, 2.5)
+            )
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        this_ax[i_c].set_title(f"{contrast[1]} > {contrast[0]}", fontweight = "bold")
+
+fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
+fig.tight_layout()
+# figsavename = os.path.join(
+#     wavesPath, 'figs', f'topo_mindstates_subtypes_{feature}.png'
+#     )
+# plt.savefig(figsavename, dpi = 300)
+    
+# %% Topo | Feature | HS, NT1, HI | Mindstate
+
+feature = 'density_20'
 
 list_values = []
 for i_ms, mindstate in enumerate(mindstates) :

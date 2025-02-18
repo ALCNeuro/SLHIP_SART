@@ -87,7 +87,8 @@ for i, file_path in enumerate(files) :
     
     if ("HS_007" in sub_id 
         or 'HS_008' in sub_id 
-        or 'N1_001_PM' in sub_id):
+        or 'N1_001_PM' in sub_id
+        or "N1_009_AM" in sub_id):
         continue
     
     print(f"...Processing {sub_id}, file {i+1} / {len(files)}...")
