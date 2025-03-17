@@ -293,7 +293,7 @@ ax.set_xlabel("Amplitude all waves", font = bold_font, fontsize = 24)
 
 sns.despine()   
 fig.tight_layout()
-plt.savefig(os.path.join(wavesPath, "figs", "lineplot_swdensity_ptpbin.png"), dpi = 300)
+plt.savefig(os.path.join(wavesPath, "figs", "lineplot_swdensity_ptpbin.png"), dpi = 200)
     
 
 # %% 

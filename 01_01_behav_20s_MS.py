@@ -79,7 +79,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import statsmodels.formula.api as smf
 from statsmodels.miscmodels.ordinal_model import OrderedModel
-from highlight_text import fig_text
+# from highlight_text import fig_text
 from matplotlib.font_manager import FontProperties
 from scipy.io import loadmat
 from glob import glob
@@ -649,9 +649,9 @@ plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
 
 # %% Check stats individually 
 
-y = 'rt_go'
+y = 'sleepiness'
 
-model_formula = f'{y} ~ C(subtype, Treatment("N1"))'
+model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
 model_result = model.fit()
 print(f"Statistics for {y}:\n{model_result.summary()}")
@@ -1331,15 +1331,14 @@ fig.tight_layout()
 
 plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
 
-# %% 
-#### Stats
+# %% Stats
 
 temp_df = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
     ['sub_id', 'subtype', 'mindstate'], as_index = False
     ).mean()
 temp_df = temp_df.loc[temp_df.mindstate.isin(order)]
 
-model_formula = 'percentage ~ C(mindstate, Treatment("MB")) * C(subtype, Treatment("HS"))'
+model_formula = 'percentage ~ C(mindstate, Treatment("ON")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(
     model_formula, 
     temp_df, 
@@ -1493,7 +1492,8 @@ data = this_df
 x = 'mindstate'
 order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 hue = 'subtype'
-hue_order = ['HS', 'N1', 'HI']
+# hue_order = ['HS', 'N1', 'HI']
+hue_order = ['HS', 'N1']
 # colors = ['#51b7ff','#a4abff']
 # colors = ['#565B69','#0070C0']
 
@@ -1656,6 +1656,21 @@ fig_text(
    fig=fig
 )
 plt.savefig(f"{behavpath}/miss_fa_rt_subtype_n1.png", dpi=200)
+
+# %% Stats
+
+df_stats = this_df.loc[this_df.subtype != 'HI']
+
+model_formula = 'rt_go ~ C(mindstate, Treatment("MW_I")) * C(subtype, Treatment("HS"))'
+model = smf.mixedlm(
+    model_formula, 
+    df_stats, 
+    groups=df_stats['sub_id'], 
+    missing = 'drop'
+    )
+model_result = model.fit()
+print(model_result.summary())
+
 
 # %% M & FA - MS only
 

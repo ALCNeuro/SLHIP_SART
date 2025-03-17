@@ -113,15 +113,16 @@ def visu_scoring(
     
     sleep_scores = []
     for idx, event in enumerate(events[:, 0]):
-        fig, ax = plt.subplots(nrows=5, ncols=1, sharex=True, figsize=(16, 16))
+        fig, ax = plt.subplots(nrows=data.shape[0], ncols=1, figsize=(16, 16))
         for i in range(data.shape[0]) :
-            if i < 3 :
-                ax[i].set_ylim([-200, 200])
+            if i < data.shape[0]-2 :
+                ax[i].set_ylim([-150, 150])
                 ax[i].plot(
                     data[i, event-20*256:event+10*256], 
                     linewidth = .5,
                     color = 'k'
                     )
+                ax[i].set_yticks(np.linspace(-150, 150, 3), np.linspace(-150, 150, 3))
             else :
                 ax[i].set_ylim([-500, 500])
                 ax[i].plot(
@@ -142,14 +143,27 @@ def visu_scoring(
             ax[i].vlines(
                 x=event - (event-20*256), ymin=-500, ymax=500, color = 'r'
                 )
-        ax[0].set_xlim([0, 30*256])
-        ax[0].set_xticks(np.linspace(0, 7680, 7), np.arange(-20, 15, 5))
-        ax[data.shape[0]-1].set_xlabel(
+            # Remove top, right, and bottom spines
+            ax[i].spines['top'].set_visible(False)
+            ax[i].spines['right'].set_visible(False)
+            ax[i].spines['bottom'].set_visible(False)
+            ax[i].set_xlim([0, 30*256])
+        
+        # Remove xticks for all axes except the last one
+        for i in range(len(ax)-1):
+            ax[i].set_xticks([])
+            
+        # Configure the shared x-axis ticks and label on the last subplot
+       
+        ax[-1].set_xticks(np.linspace(0, 7680, 7))
+        ax[-1].set_xticklabels(np.arange(-20, 15, 5))
+        ax[-1].set_xlabel(
             'Time before probe onset (s)', 
             fontsize=12, 
             fontweight='bold'
             )
-        fig.tight_layout(pad = 1.5)
+        
+        fig.tight_layout(pad = 1)
         plt.show()
         plt.pause(.1)
         
@@ -173,7 +187,7 @@ def visu_scoring(
     print(f"Sleep scores have been saved to '{scoring_savepath}'.")
     
 
-# %% Script
+# %% Script Score All
 
 for i, file_path in enumerate(files) :
     #### [1] Import Data and Minimally Process it
@@ -221,12 +235,104 @@ for i, file_path in enumerate(files) :
     
     data = raw.get_data(units = {'eeg' : 'uV', 'eog' : 'uV'})
     
-    
-    
     # visu_scoring(
     #         data, 
     #         ms_probes, 
     #         scoring_savepath,
     #         channels_names = ['F3', 'C3', 'O1', 'VEOG', 'HEOG']
     #         )
+  
+# %% Narco Hallu
+
+probe_col = [
+    "nprobe","t_probe_th","t_probe_act","nblock","block_cond","ntrial",
+    "PQ1_respkey","PQ2_respkey","PQ3_respkey",
+    "PQ1_resptime","PQ2_resptime","PQ3_resptime",
+    "PQ1_questime","PQ2_questime","PQ3_questime",
+    "PQ1_respval","PQ2_respval","PQ3_respval"
+    ]
+ms_dic = {
+    0 : "MISS",
+    1 : 'ON',
+    2 : 'MW',
+    3 : 'DISTRACTED',
+    4 : 'HALLU',
+    5 : 'MB',
+    6 : 'FORGOT'
+    }
+
+for i, file_path in enumerate(files) :
+    #### [1] Import Data and Minimally Process it
+    sub_id = f"{file_path.split('/sub_')[1][:6]}{file_path.split('SART')[1][:3]}"
+    
+    if (sub_id.startswith('HS')
+        or sub_id.startswith('HI')
+        or 'N1_001_PM' in sub_id):
+        continue
+    
+    print(f"...Processing {sub_id}, file {i+1} / {len(files)}...")
+    
+    subtype = sub_id[:2]
+    session = sub_id[-2:]
+    
+    et_filepath = glob(os.path.join(
+        path_data, 'experiment', f'sub_{sub_id[:-3]}', "*.asc")
+        )
+    
+    scoring_savepath = os.path.join(
+        path_preproc, "epochs_scoring", f"{sub_id}_hypno_hallu.txt"
+        )
+    
+    behav_paths = glob(os.path.join(
+        path_data, "experiment", f"sub_{sub_id[:-3]}", "*.mat"
+        ))
+    
+    #### Extract Behav Infos
+    if len(behav_paths) < 1 :
+        print(f"\nNo behav_path found for {sub_id}... Look into it! Skipping for now...")
+        # continue
+    if session == "AM" :
+        behav_path = behav_paths[0]
+    else :
+        behav_path = behav_paths[1]
+    mat = loadmat(behav_path)
+    df_probe = pd.DataFrame(
+        mat['probe_res'], 
+        columns = probe_col)
+    if any(df_probe.PQ1_respval.isna()) :
+        df_probe.PQ1_respval.replace(np.nan, 0, inplace = True)
+        
+    ms_answers = np.array(
+        [ms_dic[value] for value in df_probe.PQ1_respval.values]
+        )
+    
+    raw = cfg.load_and_preprocess_data(file_path)
+    raw.pick(['F3', 'F4', 'C3', 'C4', 'O1', 'O2', 'TP10', 'VEOG', 'HEOG'])
+    raw.set_eeg_reference(ref_channels = ['TP10'])
+    raw.drop_channels('TP10')
+    raw.filter(.5, 40)
+    
+    sf = raw.info['sfreq']
+    
+    events, event_id = mne.events_from_annotations(raw)
+    ms_probes =  np.stack(
+        [event for i, event in enumerate(events[events[:, 2] == 128]) 
+         if not i%3])
+    
+    data = raw.get_data(units = {'eeg' : 'uV', 'eog' : 'uV'})
+    
+    if not len(ms_answers) == len(ms_probes) :
+        print(f"!!!\n{sub_id} : Careful, inconsistencies found between EEG and Behav\n!!!")
+        continue
+    
+    hallu_pos = np.where(ms_answers == 'HALLU')[0]
+    hallu_events = ms_probes[hallu_pos]
+        
+    visu_scoring(
+            data, 
+            hallu_events, 
+            scoring_savepath,
+            channels_names = ['F3', 'F4', 'C3', 'C4', 'O1', 'O2', 'TP10', 'VEOG', 'HEOG']
+            # channels_names = ['F3', 'C3', 'O1', 'VEOG', 'HEOG']
+            )
   

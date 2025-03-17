@@ -259,7 +259,7 @@ if print_stats :
            
 # %% Topo | Density | HS, NT1, HI
 
-feature = 'density_20'
+feature = 'density_90_hs_global'
 
 list_values = []
 for i_ms, mindstate in enumerate(mindstates) :
@@ -376,12 +376,14 @@ plt.savefig(figsavename, dpi = 300)
 # %% NOT ENOUGH DATA LME Mindstate | Feature | HS, NT1, HI
 
 interest = 'density_20'
-contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW")]
+contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW"), ("ON", "HALLU")]
+
+subtypes = ['HS', 'N1']
 
 fig, ax = plt.subplots(
     nrows = len(subtypes), 
     ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
-    figsize = (18,6),
+    figsize = (12,18),
     )
 for i_s, subtype in enumerate(subtypes) :
     this_ax = ax[i_s]
@@ -398,7 +400,7 @@ for i_s, subtype in enumerate(subtypes) :
             subdf = cond_df[
                 ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
                 ].loc[(cond_df.channel == chan)].dropna()
-            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
             mdf = md.fit()
             
             if f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]" not in mdf.tvalues.index :
@@ -425,7 +427,7 @@ for i_s, subtype in enumerate(subtypes) :
             contours = 3,
             mask = np.asarray(temp_pval) <= 0.05,
             mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                        linewidth=0, markersize=6),
+                        linewidth=0, markersize=10),
             cmap = "viridis",
             vlim = (-2.5, 2.5)
             )
@@ -695,9 +697,9 @@ for subtype in subtypes :
 
 # %% Topo | LME - Explo Subtype ME
 
-feature = "ptp_20"
+feature = "ptp_90_hs_global"
 
-model = f"{feature} ~ sleepiness + C(subtype, Treatment('HS'))" 
+model = f"{feature} ~ C(subtype, Treatment('HS'))" 
 
 this_df = mean_df[[
     'sub_id', 'subtype', 

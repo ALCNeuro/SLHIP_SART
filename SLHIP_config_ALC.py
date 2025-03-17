@@ -351,78 +351,79 @@ def automatic_ica(
             f.write('\n'.join(map(str, ica.exclude)))
     return ica
 
-def generate_flexible_report(
-        raw, epochs, ica, sub_id, output_dir, 
-        compare_evoked=True, 
-        include_raw=True, 
-        include_psd=True, 
-        include_ica=True):
-    """
-    Generate a comprehensive HTML report with flexible content inclusion and ICA comparison.
 
-    Parameters:
-    - raw: mne.io.Raw, the original raw data.
-    - epochs: mne.Epochs, the epochs before ICA application.
-    - ica: mne.preprocessing.ICA, the ICA object after fitting.
-    - sub_id: str, subject identifier for file naming.
-    - output_dir: str, directory to save the report.
-    - compare_evoked: bool, whether to include comparison of evoked responses before and after ICA.
-    - include_raw: bool, whether to include the raw data section.
-    - include_psd: bool, whether to include power spectral density of the raw data.
-    - include_ica: bool, whether to include ICA components and classification.
+# def generate_flexible_report(
+#         raw, epochs, ica, sub_id, output_dir, 
+#         compare_evoked=True, 
+#         include_raw=True, 
+#         include_psd=True, 
+#         include_ica=True):
+#     """
+#     Generate a comprehensive HTML report with flexible content inclusion and ICA comparison.
 
-    Returns:
-    - None, saves the report to the specified path.
-    """
-    from mne import Report
-    report = Report(
-        title=f'EEG Preprocessing Report for Subject {sub_id}', verbose=True
-        )
+#     Parameters:
+#     - raw: mne.io.Raw, the original raw data.
+#     - epochs: mne.Epochs, the epochs before ICA application.
+#     - ica: mne.preprocessing.ICA, the ICA object after fitting.
+#     - sub_id: str, subject identifier for file naming.
+#     - output_dir: str, directory to save the report.
+#     - compare_evoked: bool, whether to include comparison of evoked responses before and after ICA.
+#     - include_raw: bool, whether to include the raw data section.
+#     - include_psd: bool, whether to include power spectral density of the raw data.
+#     - include_ica: bool, whether to include ICA components and classification.
+
+#     Returns:
+#     - None, saves the report to the specified path.
+#     """
+#     from mne import Report
+#     report = Report(
+#         title=f'EEG Preprocessing Report for Subject {sub_id}', verbose=True
+#         )
     
-    if include_raw:
-        report.add_raw(raw=raw, title='Raw Data', psd = True)
-    if include_ica:
-        ecg_evks = epochs.copy().average(picks = 'ECG')
-        eog_evks = epochs.copy().average(picks = ['eog'])
-        eog_idx, eog_scores = ica.find_bads_eog(
-            epochs, 
-            ch_name='VEOG', 
-            threshold='auto',
-            l_freq=1, 
-            h_freq=10, 
-            measure='correlation')
-        ecg_idx, ecg_scores = ica.find_bads_ecg(
-            epochs, 
-            ch_name='ECG', 
-            threshold='auto',
-            l_freq=8, 
-            h_freq=16, 
-            method='ctps', 
-            measure='correlation', 
-            verbose=None)
+#     if include_raw:
+#         report.add_raw(raw=raw, title='Raw Data', psd = True)
+#     if include_ica:
+#         ecg_evks = epochs.copy().average(picks = 'ECG')
+#         eog_evks = epochs.copy().average(picks = ['eog'])
+#         eog_idx, eog_scores = ica.find_bads_eog(
+#             epochs, 
+#             ch_name='VEOG', 
+#             threshold='auto',
+#             l_freq=1, 
+#             h_freq=10, 
+#             measure='correlation')
+#         ecg_idx, ecg_scores = ica.find_bads_ecg(
+#             epochs, 
+#             ch_name='ECG', 
+#             threshold='auto',
+#             l_freq=8, 
+#             h_freq=16, 
+#             method='ctps', 
+#             measure='correlation', 
+#             verbose=None)
         
-        report.add_ica(
-            ica=ica, 
-            title='ICA Components', 
-            inst=epochs, 
-            ecg_evoked=ecg_evks,
-            eog_evoked=eog_evks,
-            )
+#         report.add_ica(
+#             ica=ica, 
+#             title='ICA Components', 
+#             inst=epochs, 
+#             ecg_evoked=ecg_evks,
+#             eog_evoked=eog_evks,
+#             )
     
-    # Compare evoked responses before and after ICA
-    if compare_evoked:
-        evoked_before = epochs.average()
-        epochs_clean = ica.apply(epochs.copy())
-        evoked_after = epochs_clean.average()
+#     # Compare evoked responses before and after ICA
+#     if compare_evoked:
+#         evoked_before = epochs.average()
+#         epochs_clean = ica.apply(epochs.copy())
+#         evoked_after = epochs_clean.average()
         
-        fig_before = evoked_before.plot(show=False)
-        fig_after = evoked_after.plot(show=False)
+#         fig_before = evoked_before.plot(show=False)
+#         fig_after = evoked_after.plot(show=False)
         
-        report.add_figure(fig_before, title='Evoked Response Before ICA')
-        report.add_figure(fig_after, title='Evoked Response After ICA')
+#         report.add_figure(fig_before, title='Evoked Response Before ICA')
+#         report.add_figure(fig_after, title='Evoked Response After ICA')
     
-    report_path = f"{output_dir}/{sub_id}_report.html"
-    report.save(report_path, overwrite=True)
-    print(f"Report saved to {report_path}")
+#     report_path = f"{output_dir}/{sub_id}_report.html"
+#     report.save(report_path, overwrite=True)
+#     print(f"Report saved to {report_path}")
 
 

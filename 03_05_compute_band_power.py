@@ -54,7 +54,7 @@ freq_bands = {
      'gamma': (30, 40)
      }
 
-threshold = dict(eeg = 400e-6)
+threshold = dict(eeg = 600e-6)
 
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 
@@ -192,7 +192,7 @@ for feature in cols_power :
     
     plt.show()  
 
-# %% Statistical comparisons LME
+# %% ME - Subtype LME
 
 mean_df = df.groupby(
     ['sub_id', 'subtype', 'channel', 'mindstate'], 
@@ -201,47 +201,105 @@ mean_df = df.groupby(
 interest = 'abs_beta'
 fdr_corrected = 0
 
-model = f"{interest} ~ C(subtype, Treatment('HS'))" 
-
-fig, ax = plt.subplots(
-    nrows = 1, ncols = 2, figsize = (8, 4))
-for i, subtype in enumerate(["N1", "HI"]):
-    temp_tval = []; temp_pval = []; chan_l = []
-    cond_df = mean_df.loc[mean_df.subtype.isin(['HS', subtype])]
-    for chan in channels :
-        subdf = cond_df[
-            ['sub_id', 'subtype', 'channel', f'{interest}']
-            ].loc[(cond_df.channel == chan)].dropna()
-        md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
-        mdf = md.fit()
-        temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
-        temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
-        chan_l.append(chan)
-        
-    if np.any(np.isnan(temp_tval)) :
-        temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
-         
-    if fdr_corrected :
-        _, corrected_pval = fdrcorrection(temp_pval)
-        display_pval = corrected_pval
-    else : 
-        display_pval = temp_pval
+for interest in cols_power :
+    model = f"{interest} ~ C(subtype, Treatment('HS'))" 
     
-    divider = make_axes_locatable(ax[i])
-    cax = divider.append_axes("right", size = "5%", pad=0.05)
-    im, cm = mne.viz.plot_topomap(
-        data = temp_tval,
-        pos = epochs.info,
-        axes = ax[i],
-        contours = 3,
-        mask = np.asarray(display_pval) <= 0.05,
-        mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                    linewidth=0, markersize=6),
-        cmap = "viridis",
-        vlim = (np.percentile(temp_tval, 5), np.percentile(temp_tval, 95))
-        )
-    fig.colorbar(im, cax = cax, orientation = 'vertical')
+    fig, ax = plt.subplots(
+        nrows = 1, ncols = 2, figsize = (8, 4))
+    for i, subtype in enumerate(["N1", "HI"]):
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = mean_df.loc[mean_df.subtype.isin(['HS', subtype])]
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'subtype', 'channel', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+            mdf = md.fit()
+            temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
+            temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
+            chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+             
+        if fdr_corrected :
+            _, corrected_pval = fdrcorrection(temp_pval)
+            display_pval = corrected_pval
+        else : 
+            display_pval = temp_pval
+        
+        divider = make_axes_locatable(ax[i])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = temp_tval,
+            pos = epochs.info,
+            axes = ax[i],
+            contours = 3,
+            mask = np.asarray(display_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=6),
+            cmap = "viridis",
+            vlim = (np.percentile(temp_tval, 5), np.percentile(temp_tval, 95))
+            )
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        ax[i].set_title(f"{subtype} > HS", font = bold_font, fontsize=12)
+    fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
+    fig.tight_layout(pad = 2)
+    
+# %% MS LME SUBTYPE
 
-    ax[i].set_title(f"{subtype} > HS", font = bold_font, fontsize=12)
-fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
-fig.tight_layout(pad = 2)
+investigate_st = "HI"
+
+mean_df = df.groupby(
+    ['sub_id', 'subtype', 'channel', 'mindstate'], 
+    as_index = False).mean()
+n1_df = mean_df.loc[mean_df.subtype==investigate_st]
+
+fdr_corrected = 0
+
+for interest in cols_power :
+    model = f"{interest} ~ C(mindstate, Treatment('ON'))" 
+    fig, ax = plt.subplots(
+        nrows = 1, ncols = 3, figsize = (8, 4))
+    
+    for i, mindstate in enumerate(["HALLU", "MW", "MB"]):
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = n1_df.loc[n1_df.mindstate.isin(['ON', mindstate])]
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'mindstate', 'channel', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+            mdf = md.fit()
+            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
+            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
+            chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+             
+        if fdr_corrected :
+            _, corrected_pval = fdrcorrection(temp_pval)
+            display_pval = corrected_pval
+        else : 
+            display_pval = temp_pval
+        
+        divider = make_axes_locatable(ax[i])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = temp_tval,
+            pos = epochs.info,
+            axes = ax[i],
+            contours = 3,
+            mask = np.asarray(display_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=6),
+            cmap = "viridis",
+            vlim = (np.percentile(temp_tval, 5), np.percentile(temp_tval, 95))
+            )
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        ax[i].set_title(f"{mindstate} > ON", font = bold_font, fontsize=12)
+    fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
+    fig.tight_layout(pad = 2)
