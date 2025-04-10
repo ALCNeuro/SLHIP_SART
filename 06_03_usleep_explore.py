@@ -35,8 +35,10 @@ else:
 path_data=os.path.join(path_root, '00_Raw')
 path_usleep=os.path.join(path_root, '06_USleep')
 
+usleep_model = "U-Sleep-EEG v2.0"
+
 # Paths to the EEG files, here brainvision files
-files = glob(os.path.join(path_usleep, '*.npy'))
+files = glob(os.path.join(path_usleep, f'*{usleep_model}*.npy'))
 
 probe_col = [
     "nprobe","t_probe_th","t_probe_act","nblock","block_cond","ntrial",
@@ -145,7 +147,7 @@ for i, file in enumerate(files) :
         big_dict["P_REM"].append(this_conf_scores[4])
      
 df = pd.DataFrame.from_dict(big_dict)
-df.to_csv(os.path.join(path_usleep, f'df_proba_probes_{time_window_oi}.csv'))
+df.to_csv(os.path.join(path_usleep, f'df_proba_probes_{time_window_oi}_{usleep_model}.csv'))
 
 # %% 
 
@@ -165,7 +167,7 @@ y = 'P_REM'
 x = "group"
 order = ["HS", "N1", "HI"]   
          
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (6, 6))
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (4, 5))
 sns.pointplot(
     data = data, 
     x = x,
@@ -174,14 +176,32 @@ sns.pointplot(
     errorbar = 'se',
     capsize = 0.05,
     linestyle = 'none',
-    palette = subtype_palette
-    )                
+    palette = subtype_palette,
+    dodge = 0.55
+    )   
+sns.violinplot(
+    data = data, 
+    x = x,
+    y = y,
+    order = order,
+    dodge = True,
+    fill = True, 
+    inner = None,
+    cut = .1,
+    ax = ax,
+    palette = subtype_palette,
+    legend = None,
+    # split = True,
+    gap = .05,
+    alpha = .1,
+    linecolor = "white"
+    )             
 sns.stripplot(
     data = data, 
     x = x,
     y = y,
     order = order,
-    alpha = 0.15,
+    alpha = 0.1,
     dodge = True,
     legend = None,
     palette = subtype_palette
@@ -189,58 +209,46 @@ sns.stripplot(
 
 ax.set_ylabel('Probability %', size = 18, font = bold_font)
 ax.set_xlabel('Group', size = 18, font = bold_font)
-ax.set_ylim(0, 1)
+ax.set_ylim(0, np.round(data[y].max(), 1))
 ax.set_xticks(
-    ticks = np.arange(0, 2, 1), 
+    ticks = np.linspace(0, 2, 3), 
     labels = ["HS", "N1", "HI"]   ,
     font = font, 
-    fontsize = 10)
+    fontsize = 12)
 ax.set_yticks(
-    ticks = np.arange(0, 1.2, .2), 
-    labels = np.arange(0, 120, 20), 
-    font = font, fontsize = 12)
+    ticks = np.linspace(0, np.round(data[y].max(), 1), 5), 
+    labels = np.linspace(0, np.round(data[y].max(), 1), 5), 
+    font = font, fontsize = 14)
 sns.despine()
-# title = """<Mindstate Percentage> according to the <Mindstate>"""
-# fig_text(
-#    0.05, .93,
-#    title,
-#    fontsize=16,
-#    ha='left', va='center',
-#    color="k", font=font,
-#    highlight_textprops=[
-#       {'font': bold_font},
-#       {'font': bold_font},
-#    ],
-#    fig=fig
-# )
+fig.tight_layout()
 
-# plt.savefig(
-#     os.path.join(path_usleep, "figs", "proba_probe_me_subtype.png"), 
-#     dpi=200
-#     )
+plt.savefig(
+    os.path.join(path_usleep, "figs", f"{y}_probe_me_nt1_hs.png"), 
+    dpi=200
+    )
 
 # %% Stats ME Subtype
 
-# model_formula = 'percentage ~ C(mindstate, Treatment("ON"))'
-# model = smf.mixedlm(
-#     model_formula, 
-#     df_mindstate, 
-#     groups=df_mindstate['sub_id'], 
-#     missing = 'drop'
-#     )
-# model_result = model.fit()
-# print(model_result.summary())
+model_formula = 'P_REM ~ C(group, Treatment("HI"))'
+model = smf.mixedlm(
+    model_formula, 
+    data, 
+    groups=data['sub_id'], 
+    missing = 'drop'
+    )
+model_result = model.fit()
+print(model_result.summary())
 
 # %% Plots Subtype x Mindstate
 
-# poi = ["P_WAKE", "P_N1", "P_N2", "P_N3", "P_REM"]
-poi = ["P_WAKE", "P_REM"]
+poi = ["P_WAKE", "P_N1", "P_N2", "P_REM"]
+# poi = ["P_WAKE", "P_REM"]
 data = mean_df.copy()
 
 hue = "group"
 hue_order = ["HS", "N1", "HI"]   
 x = "mindstate"
-order = ["ON", "MW", "MB", "HALLU"]   
+order = ["ON", "MW", "MB", "HALLU", "FORGOT"]   
 
 fig, axs = plt.subplots(
     nrows = len(poi),
@@ -307,7 +315,7 @@ fig.tight_layout(pad=1.5)
 
 # %% Stats Subtype x Mindstate
 
-model_formula = 'P_WAKE ~ C(group, Treatment("HS")) * C(mindstate, Treatment("ON"))'
+model_formula = 'P_REM ~ C(group, Treatment("HS")) * C(mindstate, Treatment("ON"))'
 model = smf.mixedlm(
     model_formula, 
     mean_df, 
@@ -339,7 +347,7 @@ order = np.arange(1, 10, 1)
 fig, axs = plt.subplots(
     nrows = len(poi),
     ncols = 1,
-    figsize = (6,12),
+    figsize = (7,5),
     sharex=True,
     sharey=True
     )
@@ -388,6 +396,87 @@ for i_p, p in enumerate(poi):
     axs[i_p].set_yticks(
         ticks = np.arange(0, 1.2, .2), 
         labels = np.arange(0, 120, 20), 
+        font = font, fontsize = 12)
+    sns.despine()
+
+fig.tight_layout(pad=1.5)
+
+# plt.savefig(
+#     os.path.join(path_usleep, "figs", "proba_probe_me_subtype.png"), 
+#     dpi=200
+#     )
+
+# %% Plots Subtype x Mindstate
+
+this_df = df_oi[
+    ["sub_id", "group", "sleepiness",
+    "P_WAKE", "P_N1", "P_N2", "P_N3", "P_REM"]
+    ].groupby(["sub_id", "group", "sleepiness"], 
+              as_index=False
+              ).mean()
+              
+this_df["sleepiness"] = this_df["sleepiness"].astype(int)
+# poi = ["P_WAKE", "P_N1", "P_N2", "P_N3", "P_REM"]
+poi = ["P_N1", "P_N2"]
+data = this_df.copy()
+
+hue = "group"
+hue_order = ["HS", "N1", "HI"]   
+x = "sleepiness"
+order = np.arange(1, 10, 1)
+
+fig, axs = plt.subplots(
+    nrows = len(poi),
+    ncols = 1,
+    figsize = (7,5),
+    sharex=True,
+    sharey=True
+    )
+for i_p, p in enumerate(poi):
+
+    y = p
+    
+    sns.pointplot(
+        data = data, 
+        x = x,
+        y = y,
+        order = order,
+        hue = hue,
+        hue_order = hue_order,
+        errorbar = 'se',
+        capsize = 0.05,
+        linestyle = 'none',
+        palette = subtype_palette,
+        dodge=.55,
+        ax = axs[i_p],
+        legend= None
+        )                
+    sns.stripplot(
+        data = data, 
+        x = x,
+        y = y,
+        order = order,
+        hue = hue,
+        hue_order = hue_order,
+        alpha = 0.2,
+        dodge = True,
+        legend = None,
+        palette = subtype_palette,
+        ax = axs[i_p],
+        )
+    
+    axs[i_p].set_ylabel(p, size = 18, font = bold_font)
+    axs[i_p].set_xlabel('Sleepiness (KSS)', size = 18, font = bold_font)
+    axs[i_p].set_ylim(0, .5)
+    # ax.set_xticks(
+    #     ticks = np.arange(0, 2, 1), 
+    #     labels = ["HS", "N1", "HI"]   ,
+    #     font = font, 
+    #     fontsize = 10)
+    
+    axs[i_p].set_yticks(
+        ticks = np.arange(0, .6, .1), 
+        labels = np.arange(0, 60, 10), 
         font = font, fontsize = 12)
     sns.despine()
 

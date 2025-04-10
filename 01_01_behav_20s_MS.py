@@ -173,14 +173,17 @@ def calculate_behavioral_metrics(interprobe_mat):
         cr = 100 * len(nogo_trials[nogo_trials['corr_nogo'] == 1]) / len(nogo_trials)
         fa = 100 * (1 - cr / 100)
     rtgo = go_corr['rt'].mean()
+    std_rtgo = go_corr['rt'].std()
     rtnogo = nogo_trials['rt'].mean()
-    return hits, miss, cr, fa, rtgo, rtnogo
+    std_rtnogo = nogo_trials['rt'].std()
+    return hits, miss, cr, fa, rtgo, rtnogo, std_rtgo, std_rtnogo
 
 
 # %% Loop
 
 columns = ['sub_id', 'subtype', 'nblock', 'probe', 
-           'rt_go', 'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms', 
+           'rt_go', 'rt_nogo', 'std_rtgo', 'std_rtnogo', 
+           'hits', 'miss', 'correct_rejections', 'false_alarms', 
            'mindstate', 'voluntary', 'sleepiness', 'daytime']
 
 data_dict = {col: [] for col in columns}
@@ -233,7 +236,7 @@ for sub_id in sub_ids :
                 probe_submat = block_mat_probe.iloc[i]
     
                 # Behavioral metrics
-                hits, miss, cr, fa, rtgo, rtnogo = calculate_behavioral_metrics(interprobe_mat)
+                hits, miss, cr, fa, rtgo, rtnogo, std_rtgo, std_rtnogo = calculate_behavioral_metrics(interprobe_mat)
                 append_to_lists(
                     data_dict, 
                     sub_id=sub_id, 
@@ -241,7 +244,9 @@ for sub_id in sub_ids :
                     nblock=nblock, 
                     probe=i+1,
                     rt_go=rtgo, 
-                    rt_nogo=rtnogo, 
+                    rt_nogo=rtnogo,
+                    std_rtgo=std_rtgo,
+                    std_rtnogo=std_rtnogo,
                     hits=hits, 
                     miss=miss, 
                     correct_rejections=cr, 
@@ -284,15 +289,15 @@ sub_df['total_block'] = total_block
 sub_df['total_probe'] = total_probe
             
 
-block_df = sub_df[['sub_id', 'subtype', 'nblock', 'rt_go', 'rt_nogo', 'hits', 'miss',
-       'correct_rejections', 'false_alarms', 'mindstate', 'voluntary',
-       'sleepiness', 'daytime']].groupby(
+block_df = sub_df[['sub_id', 'subtype', 'nblock', 'rt_go', 'rt_nogo','std_rtgo',
+       'std_rtnogo', 'hits', 'miss', 'correct_rejections', 'false_alarms', 
+       'mindstate', 'voluntary', 'sleepiness', 'daytime']].groupby(
            ['sub_id', 'subtype', 'mindstate', 'nblock', 'daytime'], 
            as_index = False).mean()
 
-this_df = sub_df[['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
-       'correct_rejections', 'false_alarms', 'mindstate', 
-       'sleepiness', 'daytime']].groupby(
+this_df = sub_df[['sub_id', 'subtype','rt_go', 'rt_nogo','std_rtgo',
+       'std_rtnogo','hits', 'miss','correct_rejections', 'false_alarms', 
+       'mindstate', 'sleepiness', 'daytime']].groupby(
            ['sub_id', 'subtype', 'mindstate', 'daytime'], 
            as_index = False).mean()
            
@@ -474,7 +479,7 @@ print(f"Statistics for {y}:\n{model_result.summary()}")
 # %% Joint
 
 this_df = sub_df[
-    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'std_rtgo', 'std_rtnogo', 'hits', 'miss',
      'correct_rejections', 'false_alarms', 'sleepiness']
     ].groupby(['sub_id', 'subtype'], as_index = False).mean()
 
@@ -482,7 +487,7 @@ data = this_df
 hue = 'subtype'
 hue_order = ['HS', 'N1', 'HI']
 
-fig, ax = plt.subplots(nrows = 4, ncols = 1, figsize = (2.5, 8), sharex = True)
+fig, ax = plt.subplots(nrows = 5, ncols = 1, figsize = (2.5, 8), sharex = True)
 
 y = 'sleepiness'
 sns.pointplot(
@@ -635,7 +640,46 @@ ax[3].set_ylabel("RT Go (ms)", font = bold_font, size = 15)
 ax[3].set_xlabel("Subtype", font = bold_font, size = 15)
 sns.despine(fig, bottom = True)
 
-for i in range(4):
+y = 'std_rtgo'
+sns.pointplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .55,
+    palette = subtype_palette,
+    legend = None,
+    ax = ax[4],
+    errorbar = "se",
+    capsize = .02,
+    ls = "none",
+    alpha = .8
+    )
+
+sns.stripplot(
+    data = data,
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[4],
+    palette = subtype_palette,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+ax[4].set_yticks(
+    ticks = np.linspace(.05, .15, 3), 
+    labels = np.linspace(.05, .15, 3), 
+    font = font, 
+    size = 12)
+ax[4].set_ylim(.03, .16)
+ax[4].set_ylabel("std RT Go (ms)", font = bold_font, size = 15)
+ax[4].set_xlabel("Subtype", font = bold_font, size = 15)
+sns.despine(fig, bottom = True)
+
+for i in range(5):
     ax[i].tick_params(
         axis='x',          # changes apply to the x-axis
         which='both',      # both major and minor ticks are affected
@@ -645,11 +689,11 @@ for i in range(4):
         )
 
 fig.tight_layout()
-plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
+# plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
 
 # %% Check stats individually 
 
-y = 'sleepiness'
+y = 'std_rtgo'
 
 model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
@@ -1202,19 +1246,19 @@ ax.set_yticks(
     labels = np.arange(0, 120, 20), 
     font = font, fontsize = 12)
 sns.despine()
-title = """<Mindstate Percentage> according to the <Mindstate>"""
-fig_text(
-   0.05, .93,
-   title,
-   fontsize=16,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-   ],
-   fig=fig
-)
+# title = """<Mindstate Percentage> according to the <Mindstate>"""
+# fig_text(
+#    0.05, .93,
+#    title,
+#    fontsize=16,
+#    ha='left', va='center',
+#    color="k", font=font,
+#    highlight_textprops=[
+#       {'font': bold_font},
+#       {'font': bold_font},
+#    ],
+#    fig=fig
+# )
 
 plt.savefig(f"{behavpath}/point_strip_per_mindstates.png", dpi=200)
 
@@ -1380,29 +1424,30 @@ x = 'mindstate'
 order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 y = 'sleepiness'
 hue = 'subtype'
-hue_order = ['HS', 'N1', 'HI']
+# hue_order = ['HS', 'N1', 'HI']
+hue_order = ['HS', 'N1']
 
 fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 6))
 
-# sns.violinplot(
-#     data = data,
-#     x = x, 
-#     order = order, 
-#     y = y, 
-#     hue = hue, 
-#     hue_order = hue_order, 
-#     dodge = True,
-#     fill = True, 
-#     inner = None,
-#     cut = .1,
-#     ax = ax,
-#     palette = subtype_palette,
-#     legend = None,
-#     # split = True,
-#     gap = .05,
-#     alpha = .2,
-#     linecolor = "white"
-#     )
+sns.violinplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    fill = True, 
+    inner = None,
+    cut = .1,
+    ax = ax,
+    palette = subtype_palette,
+    legend = None,
+    # split = True,
+    gap = .05,
+    alpha = .2,
+    linecolor = "white"
+    )
 
 sns.pointplot(
     data = data,
@@ -1411,7 +1456,7 @@ sns.pointplot(
     y = y, 
     hue = hue, 
     hue_order = hue_order, 
-    dodge = .55,
+    dodge = .4,
     palette = subtype_palette,
     errorbar = 'se',
     legend = None,
@@ -1431,7 +1476,7 @@ sns.stripplot(
     palette = subtype_palette,
     legend = None,
     jitter = True,
-    alpha = .5
+    alpha = .2
     )
 ax.set_yticks(
     ticks = np.arange(1, 10, 1), 
@@ -1481,10 +1526,10 @@ result = model.fit(method='bfgs')
 
 print(result.summary())
 
-# %% Misses & False Alarms [MSxST diff]
+# %% Misses & False Alarms, RT, STD RT [MSxST diff]
 
 this_df = sub_df[
-    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'hits', 'miss',
+    ['sub_id', 'subtype','rt_go', 'rt_nogo', 'std_rtgo', 'hits', 'miss',
      'correct_rejections', 'false_alarms', 'mindstate', 'sleepiness']
     ].groupby(['sub_id', 'subtype', 'mindstate'], as_index = False).mean()
 
@@ -1497,7 +1542,7 @@ hue_order = ['HS', 'N1']
 # colors = ['#51b7ff','#a4abff']
 # colors = ['#565B69','#0070C0']
 
-fig, ax = plt.subplots(nrows = 3, ncols = 1, figsize = (5, 12), sharex = True)
+fig, ax = plt.subplots(nrows = 4, ncols = 1, figsize = (5, 8), sharex = True)
 
 y = 'miss'
 sns.pointplot(
@@ -1532,11 +1577,12 @@ sns.stripplot(
     size = 3
     )
 
-# ax[0].set_yticks(
-#     ticks = np.arange(0, 120, 20), 
-#     labels =  np.arange(0, 120, 20), 
-#     font = font, 
-#     size = 10)
+ax[0].set_yticks(
+    ticks = np.linspace(0, 80, 5), 
+    labels =  np.linspace(0, 80, 5).astype(int), 
+    font = font, 
+    size = 10)
+ax[0].set_ylim(0, 80)
 ax[0].set_ylabel("Misses (%)", font = bold_font, size = 15)
 
 
@@ -1577,11 +1623,12 @@ sns.stripplot(
     size = 3
     )
 ax[1].set_ylabel("False Alarms (%)", font = bold_font, size = 15)
-# ax[1].set_yticks(
-#     ticks = np.arange(0, 150, 50), 
-#     labels =  np.arange(0, 150, 50), 
-#     font = font, 
-#     size = 10)
+ax[1].set_yticks(
+    ticks = np.linspace(0, 100, 5), 
+    labels = np.linspace(0, 100, 5).astype(int), 
+    font = font, 
+    size = 10)
+ax[1].set_ylim(0, 100)
 
 y = 'rt_go'
 sns.pointplot(
@@ -1620,48 +1667,89 @@ sns.stripplot(
     size = 3
     )
 
-# ax[1].set_yticks(
-#     ticks = np.arange(0, 150, 50), 
-#     labels =  np.arange(0, 150, 50), 
-#     font = font, 
-#     size = 10)
-ax[2].set_ylabel("Reaction Time Go (ms)", font = bold_font, size = 15)
-ax[2].set_xticks(
+ax[2].set_yticks(
+    ticks = np.linspace(0.3, 0.8, 6), 
+    labels = np.round(np.linspace(0.3, 0.8, 6), 1), 
+    font = font, 
+    size = 10)
+ax[2].set_ylabel("RT Go (ms)", font = bold_font, size = 15)
+
+
+
+y = 'std_rtgo'
+sns.pointplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = .55,
+    palette = subtype_palette,
+    # fill = False,
+    # legend = None,
+    # gap = .15,
+    # width = .2,
+    # showfliers = False,
+    ax = ax[3],
+    errorbar = "se",
+    capsize = .1,
+    ls = "none",
+    alpha = .8
+    )
+
+sns.stripplot(
+    data = data,
+    x = x, 
+    order = order, 
+    y = y, 
+    hue = hue, 
+    hue_order = hue_order, 
+    dodge = True,
+    ax = ax[3],
+    palette = subtype_palette,
+    legend = None,
+    alpha = .5,
+    size = 3
+    )
+
+ax[3].set_yticks(
+    ticks = np.linspace(0.05, 0.25, 5), 
+    labels = np.round(np.linspace(0.05, 0.25, 5),2), 
+    font = font, 
+    size = 10)
+ax[3].set_ylim(0.03, 0.26)
+ax[3].set_ylabel("STD RT Go (ms)", font = bold_font, size = 15)
+ax[3].set_xticks(
     ticks = np.arange(0, 5, 1), 
     labels = ["ON", "MW", "MB", "Hallu/Illu", "Forgot"], 
     size = 20,
     font = font
     )
-ax[2].set_xlabel("Mindstate", font = bold_font, size = 15)
-sns.despine(fig)
+ax[3].set_xlabel("Mindstate", font = bold_font, size = 15)
+sns.despine(fig, bottom = True)
 
-title = """
-<Misses>, <False Alarms>, and <Reaction Time>\naccording to the <Mindstates> and <Subtype>
-"""
-fig_text(
-   0.07, .94,
-   title,
-   fontsize=15,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-      # {'color': colors[0], 'font': bold_font},
-      # {'color': colors[1], 'font': bold_font}
-   ],
-   fig=fig
-)
+for i in range(3):
+    ax[i].tick_params(
+        axis='x',          # changes apply to the x-axis
+        which='both',      # both major and minor ticks are affected
+        bottom=False,      # ticks along the bottom edge are off
+        top=False,         # ticks along the top edge are off
+        labelbottom=False,
+        )
+    
+fig.tight_layout(pad=1)
+
 plt.savefig(f"{behavpath}/miss_fa_rt_subtype_n1.png", dpi=200)
 
 # %% Stats
 
+feat_oi = "std_rtgo"
+ms_oi = "FORGOT"
+
 df_stats = this_df.loc[this_df.subtype != 'HI']
 
-model_formula = 'rt_go ~ C(mindstate, Treatment("MW_I")) * C(subtype, Treatment("HS"))'
+model_formula = f'{feat_oi} ~ C(mindstate, Treatment("{ms_oi}")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(
     model_formula, 
     df_stats, 

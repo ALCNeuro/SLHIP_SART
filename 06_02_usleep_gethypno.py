@@ -32,7 +32,7 @@ files = glob(os.path.join(path_edfusleep, '*.edf'))
 n_jobs = 4
 
 # Key copy-pasted from the link above
-key='eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NDIyNDY3NjYsImlhdCI6MTc0MjIwMzU2NiwibmJmIjoxNzQyMjAzNTY2LCJpZGVudGl0eSI6IjhmYWQyMzgxMmFiNyJ9.rcH1L1Ih-GplMyw38ScMFODQH8gZrMCV7TGIGxit-Ic'
+key='eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjE3NDM0Njk4OTYsImlhdCI6MTc0MzQyNjY5NiwibmJmIjoxNzQzNDI2Njk2LCJpZGVudGl0eSI6IjhmYWQyMzgxMmFiNyJ9.0GfnbWJsTjSWED9MvNJCbrUmFYaAxANzYiGDumsVFGY'
 
 # Get channel names
 raw = mne.io.read_raw_brainvision(
@@ -44,36 +44,63 @@ eog_channel = "HEOG"
 
 # channel_groups = [[str(ch), eog_channel] for ch in eeg_channels]
 
-channel_groups =[['F3', 'HEOG'],
-                ['F4', 'HEOG'],
-                ['C3', 'HEOG'],
-                ['P4', 'HEOG'],
-                ['O1', 'HEOG'],
-                ['O2', 'HEOG'],
-                ['Fz', 'HEOG'],
-                ['FC1', 'HEOG'],
-                ['FC2', 'HEOG'],
-                ['CP1', 'HEOG'],
-                ['CP2', 'HEOG'],
-                ['F1', 'HEOG'],
-                ['F2', 'HEOG'],
-                ['P1', 'HEOG'],
-                ['P2', 'HEOG'],
-                ['AF3', 'HEOG'],
-                ['AF4', 'HEOG'],
-                ['PO3', 'HEOG'],
-                ['PO4', 'HEOG'],
-                ['CPz', 'HEOG'],
-                ['POz', 'HEOG'],
-                ['Oz', 'HEOG']
-                ]
+u_sleep_model = "U-Sleep-EEG v2.0"
+
+if u_sleep_model == "U-Sleep v2.0" : 
+    channel_groups =[['F3', 'HEOG'],
+                    ['F4', 'HEOG'],
+                    ['C3', 'HEOG'],
+                    ['P4', 'HEOG'],
+                    ['O1', 'HEOG'],
+                    ['O2', 'HEOG'],
+                    ['Fz', 'HEOG'],
+                    ['FC1', 'HEOG'],
+                    ['FC2', 'HEOG'],
+                    ['CP1', 'HEOG'],
+                    ['CP2', 'HEOG'],
+                    ['F1', 'HEOG'],
+                    ['F2', 'HEOG'],
+                    ['P1', 'HEOG'],
+                    ['P2', 'HEOG'],
+                    ['AF3', 'HEOG'],
+                    ['AF4', 'HEOG'],
+                    ['PO3', 'HEOG'],
+                    ['PO4', 'HEOG'],
+                    ['CPz', 'HEOG'],
+                    ['POz', 'HEOG'],
+                    ['Oz', 'HEOG']
+                    ]
+elif u_sleep_model == "U-Sleep-EEG v2.0":
+    channel_groups = [['F3'],
+                    ['F4'],
+                    ['C3'],
+                    ['P4'],
+                    ['O1'],
+                    ['O2'],
+                    ['Fz'],
+                    ['FC1'],
+                    ['FC2'],
+                    ['CP1'],
+                    ['CP2'],
+                    ['F1'],
+                    ['F2'],
+                    ['P1'],
+                    ['P2'],
+                    ['AF3'],
+                    ['AF4'],
+                    ['PO3'],
+                    ['PO4'],
+                    ['CPz'],
+                    ['POz'],
+                    ['Oz']
+                    ]
 
 # %% Script
 
 # file = files[0]
 for i, edf_file in enumerate(files) :
     sub_id = edf_file.split('usleep/')[-1][:-4]
-    this_savepath = os.path.join(path_usleep, f"{sub_id}_hypnodensity.npy")
+    this_savepath = os.path.join(path_usleep, f"{sub_id}_hypnodensity_{u_sleep_model}.npy")
     
     if not os.path.exists(this_savepath) :
         print(f"\n...Processing {sub_id}: n°{i+1} out of {len(files)}")
@@ -86,7 +113,7 @@ for i, edf_file in enumerate(files) :
         
         # Specify which model you wanna use
         # logger.info(f"Available models: {session.get_model_names()}")
-        session.set_model("U-Sleep v2.0") # EEG + EOG # else, use U-Sleep-EEG v2.0 for EEG-only
+        session.set_model(u_sleep_model) # EEG + EOG # else, use U-Sleep-EEG v2.0 for EEG-only
             
         # Upload an edf file 
         session.upload_file(edf_file, anonymize_before_upload=False)
