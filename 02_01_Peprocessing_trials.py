@@ -32,17 +32,14 @@ At the end of the script, will be saved:
 #### Packages
 import os
 import numpy as np
-import pandas as pd
 import mne
 from glob import glob
-from autoreject import AutoReject, Ransac
+from autoreject import AutoReject
 import SLHIP_config_ALC as cfg 
-import matplotlib.pyplot as plt
-import warnings
 
 import matplotlib
-# matplotlib.use('Agg')
-# matplotlib.use('QtAgg')
+matplotlib.use('Agg')
+matplotlib.use('QtAgg')
 
 #### Paths
 if 'arthur' in os.getcwd():

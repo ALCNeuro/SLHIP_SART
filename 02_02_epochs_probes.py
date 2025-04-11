@@ -99,6 +99,9 @@ for i, file_path in enumerate(files) :
     this_probes_savename = os.path.join(
         path_preproc, "epochs_probes", f"{sub_id}_epo.fif"
         )
+    this_raw_icaed_savename = os.path.join(
+        path_preproc, "raw_icaed", f"{sub_id}_raw.fif"
+        )
     
     if os.path.exists(this_probes_savename):
         print(f"...{sub_id}, file {i+1} / {len(files)} Already processed, skipping...")
@@ -108,9 +111,7 @@ for i, file_path in enumerate(files) :
     sf = raw.info['sfreq']
     
     events, event_id = mne.events_from_annotations(raw)
-    ms_probes =  np.stack(
-        [event for i, event in enumerate(events[events[:, 2] == 128]) 
-         if not i%3])
+    ms_probes =  events[events[:, 2] == 3]
 
     behav_paths = glob(os.path.join(
         path_data, "experiment", f"sub_{sub_id[:-3]}", "*.mat"
@@ -170,6 +171,7 @@ for i, file_path in enumerate(files) :
     probe_metadata = pd.DataFrame.from_dict(ms_metadatadic)
     
     raw_ica = ica.apply(raw.copy())
+    raw_ica.save(this_raw_icaed_savename)
     
     epochs_probes = mne.Epochs(
         raw_ica, 
