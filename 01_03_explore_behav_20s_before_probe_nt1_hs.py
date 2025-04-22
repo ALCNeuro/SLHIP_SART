@@ -31,7 +31,9 @@ preprocpath = os.path.join(rootpath, "01_Preproc")
 behavpath = os.path.join(rootpath, "02_BehavResults")
 
 # subtype_palette = ["#4a5759", "#bf0603", "#ffc300"]
-subtype_palette = ["#8d99ae", "#d00000"]
+subtype_palette = ["#8d99ae", "#f77f00"]
+# subtype_palette = ["#8d99ae", "#d00000"]
+
 
 df = pd.read_csv(f"{behavpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
 
@@ -300,11 +302,11 @@ plt.savefig(os.path.join(behavpath, "nt1_hs_kss_miss_fa_rt_stdrt.png"), dpi = 30
 
 # %% Check stats individually 
 
-ys = ["miss", "false_alarms", "rt_go", "std_rtgo"]
+ys = ["miss", "false_alarms", "rt_go", "std_rtgo", "sleepiness"]
 
 for y in ys : 
 
-    model_formula = f'{y} ~ sleepiness + C(subtype, Treatment("HS"))'
+    model_formula = f'{y} ~ C(subtype, Treatment("HS"))'
     model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
     model_result = model.fit()
     print(f"Statistics for {y}:\n{model_result.summary()}")
@@ -493,7 +495,7 @@ sns.despine()
 # )
 fig.tight_layout()
 
-plt.savefig(f"{behavpath}/point_strip_per_mindstates_nt1_hs.png", dpi=200)
+plt.savefig(f"{behavpath}/point_strip_per_mindstates_nt1_hs_4TA.png", dpi=200)
 
 # %% Stats
 
@@ -502,14 +504,20 @@ temp_df = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage', 'sleepin
     ).mean()
 temp_df = temp_df.loc[temp_df.mindstate.isin(order)]
 
-model_formula = 'percentage ~ sleepiness + C(mindstate, Treatment("MW_H")) * C(subtype, Treatment("HS"))'
+model_formula = 'percentage ~ C(mindstate, Treatment("MW_H")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(
     model_formula, 
     temp_df, 
     groups=temp_df['sub_id'], 
     missing = 'drop'
     )
-model_result = model.fit()
+model_result = model.fit(
+    reml=True,
+    method='lbfgs',           # try 'lbfgs' or 'bfgs'
+    maxiter=2000,             # raise the iteration cap
+    tol=1e-6,                 # loosen the gradient tolerance
+    gtol=1e-6
+    )
 print(model_result.summary())
 
 # %% Sleepiness [MS x ST Diff]
@@ -599,11 +607,11 @@ sns.despine()
 ax.set_xlabel("Mindstate", font = bold_font, size = 14)
 
 fig.tight_layout(pad = 1)
-plt.savefig(f"{behavpath}/point_strip_sleepiness_ms_nt1_hs.png", dpi=200)
+plt.savefig(f"{behavpath}/point_strip_sleepiness_ms_nt1_hs_4TA.png", dpi=200)
 
 # %% LME Sleepiness x MS
 
-model_formula = 'sleepiness ~ C(mindstate, Treatment("ON")) * C(subtype, Treatment("HS"))'
+model_formula = 'sleepiness ~ C(mindstate, Treatment("FORGOT")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, data=this_df, groups = this_df['sub_id'])
 result = model.fit()
 
