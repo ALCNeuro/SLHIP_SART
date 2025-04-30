@@ -100,8 +100,9 @@ else :
     print("CSV file 'identifiers.csv' generated and saved successfully!")
  
 # %% VF Generate Images per Subject : Probes
+
 matplotlib.use('Agg')
-group_oi = "N1"
+group_oi = "HS"
 
 files = glob(os.path.join(
     path_data, 'experiment', f'*{group_oi}*' , '*SART*.vhdr')
@@ -312,7 +313,7 @@ for i, file_path in enumerate(files):
 
 # %% Generate Images per subject : Resting States
 
-group_oi = "N1"
+group_oi = "HS"
 sub_ids = np.unique(np.array(
     [file.split('experiment/')[1].split('/')[0] for file 
      in glob(os.path.join(path_data, "experiment", f"*{group_oi}*", "*.mat"))]
