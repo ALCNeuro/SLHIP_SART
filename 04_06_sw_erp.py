@@ -60,86 +60,92 @@ winERP = [-1, 1]
 winBaseline = [-1, -.5]
 subtypes = ['HS', 'N1', 'HI']
 
-big_dic = {
-    "HS" : {
-        "sub_id" : [],
-        "erp" : [],
-         },
-    "N1" : {
-        "sub_id" : [],
-        "erp" : [],
-         },
-    "HI" : {
-        "sub_id" : [],
-        "erp" : [],
-         },
-    }
-
-for i_f, file in enumerate(files):
-    sub_id = file.split('es/')[-1].split('_epo')[0]
-    subtype = sub_id[:2]
-    
-    thisSubSWPath = os.path.join(
-        wavesPath, "all_waves", f"{sub_id}.csv"
-        )
-    
-    if not os.path.exists(thisSubSWPath) :
-        print(f"[!!!] Error on {sub_id} - SW are missing")
-        continue
-    df = pd.read_csv(thisSubSWPath)
-    del df['Unnamed: 0']
-
-    df = df.loc[
-        (df['PTP'] < amplitude_max) 
-        & (df['PTP'] > 20)
-        & (df['pos_amp_peak'] < positive_amp)]
-    df = df.loc[
-        (df["pos_halfway_period"] <= slope_range[1])
-        & (df["pos_halfway_period"] >= slope_range[0])
-        ]
-    
-    epochs = mne.read_epochs(file)
-    epochs.pick('eeg')
-     
-    sf = epochs.info["sfreq"]
-    data = epochs.copy().get_data(units = dict(eeg = 'µV'))
-    nepochs, nchans, nsamples = data.shape
-    this_erp = np.empty((len(channels), int(2*sf)))
-
-    for ch in range(nchans) :
-        print(f"...Processing {epochs.ch_names[ch]}")
-        temp_erp = []
-        for n_epoch in range(nepochs) :
-            thisChan = data[n_epoch, ch, :]
-            epoch_chan_sw = df.loc[
-                (df['n_epoch'] == n_epoch)
-                & (df['channel'] == epochs.ch_names[ch])]
-            
-            n_sw, _ = epoch_chan_sw.shape
-            if n_sw == 0 :
-                continue
-            
-            for i_start, start in enumerate(epoch_chan_sw.start):
-                if (start + winERP[0] * sf < 0 
-                    or start + winERP[1] * sf > nsamples) : 
-                    print("SW don't fit the window, skipping")
-                    continue
-                thisSW = thisChan[
-                    int(start + winERP[0]*sf)
-                    : int(start + winERP[1]*sf)
-                    ] - np.mean(thisChan[
-                        int(start + winBaseline[0]*sf)
-                        : int(start + winBaseline[1]*sf)
-                        ])
-                temp_erp.append(thisSW)
-        this_erp[ch, :] = np.nanmean(temp_erp, axis = 0)
-    
-    big_dic[subtype]['erp'].append(this_erp)
-    big_dic[subtype]["sub_id"].append(sub_id)
 
 thisErpFile = os.path.join(wavesPath, "figs", "dic_erp_sw.pkl")
-with open(thisErpFile, 'wb') as f:
-    pickle.dump(big_dic, f)                
+
+if os.path.exists(thisErpFile) :
+    with open(thisErpFile, 'rb') as f:
+        big_dic = pickle.load(f)
+else : 
+    big_dic = {
+        "HS" : {
+            "sub_id" : [],
+            "erp" : [],
+             },
+        "N1" : {
+            "sub_id" : [],
+            "erp" : [],
+             },
+        "HI" : {
+            "sub_id" : [],
+            "erp" : [],
+             },
+        }
+    
+    for i_f, file in enumerate(files):
+        sub_id = file.split('es/')[-1].split('_epo')[0]
+        subtype = sub_id[:2]
+        
+        thisSubSWPath = os.path.join(
+            wavesPath, "all_waves", f"{sub_id}.csv"
+            )
+        
+        if not os.path.exists(thisSubSWPath) :
+            print(f"[!!!] Error on {sub_id} - SW are missing")
+            continue
+        df = pd.read_csv(thisSubSWPath)
+        del df['Unnamed: 0']
+    
+        df = df.loc[
+            (df['PTP'] < amplitude_max) 
+            & (df['PTP'] > 20)
+            & (df['pos_amp_peak'] < positive_amp)]
+        df = df.loc[
+            (df["pos_halfway_period"] <= slope_range[1])
+            & (df["pos_halfway_period"] >= slope_range[0])
+            ]
+        
+        epochs = mne.read_epochs(file)
+        epochs.pick('eeg')
+         
+        sf = epochs.info["sfreq"]
+        data = epochs.copy().get_data(units = dict(eeg = 'µV'))
+        nepochs, nchans, nsamples = data.shape
+        this_erp = np.empty((len(channels), int(2*sf)))
+    
+        for ch in range(nchans) :
+            print(f"...Processing {epochs.ch_names[ch]}")
+            temp_erp = []
+            for n_epoch in range(nepochs) :
+                thisChan = data[n_epoch, ch, :]
+                epoch_chan_sw = df.loc[
+                    (df['n_epoch'] == n_epoch)
+                    & (df['channel'] == epochs.ch_names[ch])]
+                
+                n_sw, _ = epoch_chan_sw.shape
+                if n_sw == 0 :
+                    continue
+                
+                for i_start, start in enumerate(epoch_chan_sw.start):
+                    if (start + winERP[0] * sf < 0 
+                        or start + winERP[1] * sf > nsamples) : 
+                        print("SW don't fit the window, skipping")
+                        continue
+                    thisSW = thisChan[
+                        int(start + winERP[0]*sf)
+                        : int(start + winERP[1]*sf)
+                        ] - np.mean(thisChan[
+                            int(start + winBaseline[0]*sf)
+                            : int(start + winBaseline[1]*sf)
+                            ])
+                    temp_erp.append(thisSW)
+            this_erp[ch, :] = np.nanmean(temp_erp, axis = 0)
+        
+        big_dic[subtype]['erp'].append(this_erp)
+        big_dic[subtype]["sub_id"].append(sub_id)
+    
+    with open(thisErpFile, 'wb') as f:
+        pickle.dump(big_dic, f)                
                 
 # %% ERP - average - sessions
 # thisErpFile = os.path.join(swDataPath, "dic_erp_sw.pkl")
@@ -201,48 +207,182 @@ plt.savefig(os.path.join(
     wavesPath, "figs", "ERP_SW_AverageChan.png"
     ), dpi = 300)
             
-# %% ERP [Fz, Cz, Pz, Oz]
- 
-times = np.linspace(0, 500, 500)
-palette = ["#FFBA08", "#F48C06", "#DC2F02", "#9D0208", "#370617"]
-
-fig, ax = plt.subplots(
-    nrows = 4, 
-    ncols = 2,
-    sharex = True,
-    sharey = True,
-    layout = 'tight',
-    figsize = (10, 20)
-    )
-
-for i_cond, condition in enumerate(['EASY', 'HARD']):
-    for i_chan, channel in enumerate([1, 23, 12, 16]) :
-        for i_sess, n_sess in enumerate([1, 2, 3, 4, 5]):
-            ax[i_chan][i_cond].plot(
-                times, 
-                np.nanmean(
-                    big_dic[condition][n_sess], axis = 0
-                    )[channel],
-                label = f"Session {n_sess}",
-                color = palette[i_sess]
-                )
-            ax[i_chan][i_cond].set_xticks(
-                np.linspace(0, 500, 6),
-                np.round(np.linspace(-1, 1, 6), 2)
-                )
-            ax[i_chan][i_cond].spines['right'].set_visible(False)
-            ax[i_chan][i_cond].spines['top'].set_visible(False)    
-            ax[3][i_cond].set_xlabel("Time (s)")        
-            ax[i_chan][0].set_ylabel("Voltage (µV)")        
-            ax[i_chan][i_cond].set_title(
-                f"{epochs.ch_names[channel]} - {condition}"
-                )
-            
-    fig.suptitle("ERP of average SW, across channel for each sessions")
-    ax[0][1].legend(bbox_to_anchor=(1.1, 1.05))
-
-plt.savefig(os.path.join(
-    swDataPath, "Figs", "ERP_SW_Midline.png"
-    ), dpi = 300)
- 
 # %% 
+
+# %% B - ERP 
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import sem
+
+# Load data
+thisErpFile = os.path.join(swDataPath, "dic_erp_sw_new.pkl")
+big_dic = pd.read_pickle(thisErpFile)
+
+# Define parameters
+times = np.linspace(0, 500, 500)
+sessions = [1, 2, 3, 4, 5]
+conditions = ['EASY', 'HARD']
+
+fig, axes = plt.subplots(
+    nrows=1, 
+    ncols=5, 
+    figsize=(20, 4), 
+    sharey=True, 
+    layout='tight'
+)
+
+for i_sess, sess in enumerate(sessions):
+    ax = axes[i_sess]
+    
+    for i_cond, condition in enumerate(conditions):
+        # Compute ERP for each subject (average across channels)
+        erp_subject = np.nanmean(big_dic[condition][sess], axis=1)  # shape: (n_subjects, n_times)
+        
+        # Group-level mean and SEM
+        group_mean = np.nanmean(erp_subject, axis=0)
+        group_sem = sem(erp_subject, axis=0, nan_policy='omit')
+
+        # Plot ERP and SEM
+        ax.plot(
+            times,
+            group_mean,
+            color=palette_hardeasy[i_cond],
+            linewidth=2,
+            alpha=0.7,
+            label=condition if i_sess == 0 else ""
+        )
+        ax.fill_between(
+            times,
+            group_mean - group_sem,
+            group_mean + group_sem,
+            color=palette_hardeasy[i_cond],
+            alpha=0.3
+        )
+
+    # Plot guidelines
+    ax.vlines(250, ymin=-12.5, ymax=7.5, color='k', ls='dashed', lw=1, alpha=.1)
+    ax.hlines(0, xmin=0, xmax=500, color='k', ls='dashed', lw=1, alpha=.1)
+    
+    # Format subplot
+    ax.set_xlim(0, 500)
+    ax.set_xticks(
+        np.linspace(0, 500, 5),
+        np.round(np.linspace(-1, 1, 5), 2),
+        fontsize=11
+        )
+    ax.set_ylim(-15, 7.5)
+    ax.set_title(f"Session {sess}", fontsize=12)
+    ax.set_xlabel("Time (ms)", fontsize=11)
+    if i_sess == 0:
+        ax.set_ylabel("ERP (µV)", fontsize=11)
+
+# Add legend only to first subplot
+axes[0].legend()
+
+# Save and show
+plt.savefig(os.path.join(swDataPath, "Figs", "ERP_SW_per_session.png"), dpi=300)
+plt.show()
+
+# %% B - ERP Midline by Channel and Session
+
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.stats import sem
+
+t_zero = "neg_peak_pos"    # "start", "neg_peak_pos", "pos_peak_pos"
+
+# Load ERP dictionary
+thisErpFile = os.path.join(swDataPath, f"dic_erp_sw_longer_{t_zero}.pkl")
+big_dic = pd.read_pickle(thisErpFile)
+
+# Parameters
+times = np.linspace(0, 750, 750)
+sessions = [1, 2, 3, 4, 5]
+conditions = ['EASY', 'HARD']
+midline_channels = ["Fz", "Cz", "Pz", "Oz"]
+n_rows = len(midline_channels)
+n_cols = len(sessions)
+
+# Set up plot grid
+fig, axes = plt.subplots(
+    nrows=n_rows,
+    ncols=n_cols,
+    figsize=(n_cols * 4, n_rows * 3),
+    sharex=True,
+    sharey=True,
+    layout='tight'
+)
+
+for i_row, ch_name in enumerate(midline_channels):
+    for i_col, sess in enumerate(sessions):
+        ax = axes[i_row, i_col] if n_rows > 1 else axes[i_col]
+
+        for i_cond, condition in enumerate(conditions):
+            erp_list = big_dic[condition][sess]
+
+            # Collect ERPs from the specified channel
+            subject_erp_ch = []
+            for subject_erp in erp_list:
+                try:
+                    ch_index = config.channels.index(ch_name)
+                    subject_erp_ch.append(subject_erp[ch_index, :])
+                except ValueError:
+                    print(f"⚠️ {ch_name} not found in config.channels.")
+                    continue
+                except IndexError:
+                    print(f"⚠️ ERP shape mismatch for subject in session {sess}.")
+                    continue
+
+            if len(subject_erp_ch) == 0:
+                continue
+
+            subject_erp_ch = np.stack(subject_erp_ch, axis=0)  # shape: (n_subjects, n_times)
+            group_mean = np.nanmean(subject_erp_ch, axis=0)
+            group_sem = sem(subject_erp_ch, axis=0, nan_policy='omit')
+
+            # Plot
+            ax.plot(
+                times,
+                group_mean,
+                color=palette_hardeasy[i_cond],
+                linewidth=2,
+                alpha=0.7,
+                label=condition if (i_row == 0 and i_col == 0) else ""
+            )
+            ax.fill_between(
+                times,
+                group_mean - group_sem,
+                group_mean + group_sem,
+                color=palette_hardeasy[i_cond],
+                alpha=0.3
+            )
+
+        # Axes formatting
+        # ax.vlines(250, ymin=-20, ymax=10, color='k', ls='dashed', lw=1, alpha=0.1)
+        # ax.hlines(0, xmin=0, xmax=750, color='k', ls='dashed', lw=1, alpha=0.1)
+        ax.set_xlim(0, 750)
+        ax.set_ylim(-35, 15)
+        ax.set_xticks(
+            np.linspace(0, 750, 7),
+            np.round(np.linspace(-1, 2, 7), 2),
+            fontsize=11
+            )
+
+        if i_row == n_rows - 1:
+            ax.set_xlabel("Time (ms)", fontsize=11)
+        if i_col == 0:
+            ax.set_ylabel(f"{ch_name}\nERP (µV)", fontsize=11)
+        if i_row == 0:
+            ax.set_title(f"Session {sess}", fontsize=12)
+
+# Add legend only to top-left subplot
+axes[0, 0].legend()
+
+# Save and display
+plt.savefig(os.path.join(swDataPath, "Figs", f"ERP_SW_long_midline_grid_{t_zero}.png"), dpi=300)
+plt.show()
