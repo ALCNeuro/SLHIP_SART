@@ -87,9 +87,10 @@ for i, file_path in enumerate(files) :
     
     if ("HS_007" in sub_id 
         or 'HS_008' in sub_id 
-        or 'N1_001_PM' in sub_id
-        or "N1_009_AM" in sub_id):
+        or 'N1_001_PM' in sub_id):
         continue
+    
+    if "N1_009_AM" in sub_id : input("Take over.")
     
     print(f"...Processing {sub_id}, file {i+1} / {len(files)}...")
     
@@ -171,7 +172,7 @@ for i, file_path in enumerate(files) :
     probe_metadata = pd.DataFrame.from_dict(ms_metadatadic)
     
     raw_ica = ica.apply(raw.copy())
-    raw_ica.save(this_raw_icaed_savename)
+    raw_ica.save(this_raw_icaed_savename, overwrite = True)
     
     epochs_probes = mne.Epochs(
         raw_ica, 

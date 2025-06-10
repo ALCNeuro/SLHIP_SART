@@ -689,7 +689,8 @@ for i in range(5):
         )
 
 fig.tight_layout()
-# plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
+plt.savefig(os.path.join(behavpath, "joint_behav_subtypehue.png"), dpi = 300)
+
 
 # %% Check stats individually 
 
@@ -1084,7 +1085,6 @@ model_result = model.fit()
 print(f"Statistics for {y}:\n{model_result.summary()}")
 
 # %% 
-# %% 
 
 model_formula = 'sleepiness ~ C(subtype, Treatment("HS"))'
 model = smf.mixedlm(model_formula, this_df, groups=this_df['sub_id'], missing = 'drop')
@@ -1385,8 +1385,8 @@ temp_df = temp_df.loc[temp_df.mindstate.isin(order)]
 model_formula = 'percentage ~ C(mindstate, Treatment("ON")) * C(subtype, Treatment("HS"))'
 model = smf.mixedlm(
     model_formula, 
-    temp_df, 
-    groups=temp_df['sub_id'], 
+    df_mindstate, 
+    groups=df_mindstate['sub_id'], 
     missing = 'drop'
     )
 model_result = model.fit()

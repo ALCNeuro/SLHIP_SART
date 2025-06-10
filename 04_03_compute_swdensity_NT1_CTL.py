@@ -24,9 +24,10 @@ import mne
 from glob import glob
 import pandas as pd
 import numpy as np
-from scipy.stats import exponnorm
+from scipy.stats import exponnorm, zscore
 import matplotlib.pyplot as plt
 import os
+
 
 cleanDataPath = config.cleanDataPath
 wavesPath = config.wavesPath
@@ -48,12 +49,12 @@ amplitude_max = 150
 inspect = 0
 
 features = [
-    "sub_id", "subtype", 
-    "density_uv_20", "density_p_90","density_p_80",
-    "ptp_20", "ptp_p_90", "ptp_p_80",
-    "uslope_20", "uslope_p_90", "uslope_p_80",
-    "dslope_20", "dslope_p_90", "dslope_p_80",
-    "frequency_20", "frequency_p_90", "frequency_p_80",
+    "sub_id", "subtype", "daytime",
+    "density_20", "density_p_90","density_p_80", "density_90hs", "density_80hs", 
+    "ptp_20", "ptp_p_90", "ptp_p_80", "ptp_90hs", "ptp_80hs", 
+    "uslope_20", "uslope_p_90", "uslope_p_80", "uslope_90hs", "uslope_80hs", 
+    "dslope_20", "dslope_p_90", "dslope_p_80", "dslope_90hs", "dslope_80hs", 
+    "frequency_20", "frequency_p_90", "frequency_p_80", "frequency_90hs", "frequency_80hs", 
     "channel", "n_epoch", "nblock", 
     "nprobe", 'mindstate','voluntary', 'sleepiness',
     'rt_go', 'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms'
@@ -64,7 +65,10 @@ del df_behavior['Unnamed: 0']
 
 channels = np.array(config.eeg_channels)
 
-# %% First compute thresholds based on HS dataframes
+len_epoch = 10
+
+
+# %% Compute HS Thresh
 
 this_df_thresh_savepath = os.path.join(
     wavesPath, 'features', 'df_threshold_healthy.csv'
@@ -74,7 +78,7 @@ if os.path.exists(this_df_thresh_savepath) :
     big_thresh = pd.read_csv(this_df_thresh_savepath)
 else : 
 
-    thresh_feats = ["sub_id", "session", "channel", "threshold_90_global", "threshold_90_chan"]
+    thresh_feats = ["sub_id", "session", "channel", "threshold_90", "threshold_80"]
     
     df_thresh_list = []
     
@@ -103,24 +107,18 @@ else :
             (df_aw["pos_halfway_period"] <= slope_range[1])
             & (df_aw["pos_halfway_period"] >= slope_range[0])
             ]
-        
-        thresh_90_global = np.percentile(df_aw.PTP.values, 90)
-        
-        # df_threshold = df_sw[["channel", "sw_threshold"]].groupby(
-        #     ["channel", "sw_threshold"], as_index = False).mean()
-        
-        """HERE I SHOULD TAKE THE EPOCHS I THINK, WE HAVE 40 EPOCHS"""
             
         for chan in channels :
             temp_df = df_aw.loc[df_aw["channel"] == chan]
             
             thresh_90_chan = np.percentile(temp_df.PTP.values, 90)
+            thresh_80_chan = np.percentile(temp_df.PTP.values, 80)
             
             thresh_dic['sub_id'].append(sub_id)
             thresh_dic['session'].append(session)
             thresh_dic['channel'].append(chan)
-            thresh_dic['threshold_90_global'].append(thresh_90_global)
-            thresh_dic['threshold_90_chan'].append(thresh_90_chan)
+            thresh_dic['threshold_90'].append(thresh_90_chan)
+            thresh_dic['threshold_80'].append(thresh_80_chan)
              
         df_thresh = pd.DataFrame.from_dict(thresh_dic)
         # df_thresh.to_csv("")
@@ -128,13 +126,12 @@ else :
         
     big_thresh = pd.concat(df_thresh_list)
     big_thresh.to_csv(this_df_thresh_savepath)
-
+    
 # %% Compute density (delta~theta)
 
 df_chanthresh = big_thresh[
-    ['channel','threshold_90_chan']].groupby('channel', as_index = False).mean()
-
-global_thresh = big_thresh.threshold_90_global.mean()
+    ['channel','threshold_90', 'threshold_80']
+    ].groupby('channel', as_index = False).mean()
 
 df_featlist = []
 
@@ -163,6 +160,13 @@ for i_file, file in enumerate(allwaves_files) :
         (df_aw["pos_halfway_period"] <= slope_range[1])
         & (df_aw["pos_halfway_period"] >= slope_range[0])
         ]
+    
+    thresholds_90 = {
+        c:np.percentile(df_aw.PTP.loc[df_aw.channel==c], 90) 
+        for c in channels}
+    thresholds_80 = {
+        c:np.percentile(df_aw.PTP.loc[df_aw.channel==c], 80) 
+        for c in channels}
     
     epochs_files = glob(os.path.join(
         cleanDataPath, 
@@ -200,20 +204,28 @@ for i_file, file in enumerate(allwaves_files) :
             nprobe = sub_df.nprobe.iloc[0]
         
         for chan in channels :
+            
             temp_df = sub_df.loc[sub_df["channel"] == chan]
         
             df_20 = temp_df.loc[temp_df.PTP > 20]
-            df_90_hs_global = temp_df.loc[temp_df.PTP > global_thresh]
-            df_90_hs_chan = temp_df.loc[temp_df.PTP > df_chanthresh.loc[
-                df_chanthresh.channel == chan].threshold_90_chan.iloc[0]
+            df_p_90 = temp_df.loc[temp_df.PTP > thresholds_90[chan]]
+            df_p_80 = temp_df.loc[temp_df.PTP > thresholds_80[chan]]
+            df_hs_90 = temp_df.loc[temp_df.PTP > df_chanthresh.loc[
+                df_chanthresh.channel == chan].threshold_90.iloc[0]
+                ]
+            df_hs_80 = temp_df.loc[temp_df.PTP > df_chanthresh.loc[
+                df_chanthresh.channel == chan].threshold_80.iloc[0]
                 ]
             
-            sub_dic['density_20'].append(df_20.shape[0])
-            sub_dic['density_90_hs_global'].append(df_90_hs_global.shape[0])
-            sub_dic['density_90_hs_chan'].append(df_90_hs_chan.shape[0])
+            sub_dic['density_20'].append(df_20.shape[0]/len_epoch)
+            sub_dic['density_p_90'].append(df_p_90.shape[0]/len_epoch)
+            sub_dic['density_p_80'].append(df_p_80.shape[0]/len_epoch)
+            sub_dic['density_90hs'].append(df_hs_90.shape[0]/len_epoch)
+            sub_dic['density_80hs'].append(df_hs_80.shape[0]/len_epoch)
             
             sub_dic['sub_id'].append(sub_id)
             sub_dic['subtype'].append(subtype)
+            sub_dic['daytime'].append(session)
             
             sub_dic['channel'].append(chan)
             sub_dic['n_epoch'].append(n_epoch)
@@ -223,8 +235,6 @@ for i_file, file in enumerate(allwaves_files) :
             sub_dic['mindstate'].append(mindstate)
             sub_dic['voluntary'].append(voluntary)
             sub_dic['sleepiness'].append(sleepiness)
-            
-            # 'rt_go', 'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms'
             
             sub_dic['rt_go'].append(sub_behav.rt_go.iloc[n_epoch])
             sub_dic['rt_nogo'].append(sub_behav.rt_nogo.iloc[n_epoch])
@@ -250,41 +260,80 @@ for i_file, file in enumerate(allwaves_files) :
                     1/df_20.pos_halfway_period
                     ))
                 
-            if not df_90_hs_global.shape[0] :
-                sub_dic['ptp_90_hs_global'].append(np.nan)
-                sub_dic['uslope_90_hs_global'].append(np.nan)
-                sub_dic['dslope_90_hs_global'].append(np.nan)
-                sub_dic['frequency_90_hs_global'].append(np.nan)
+            if not df_p_90.shape[0] :
+                sub_dic['ptp_p_90'].append(np.nan)
+                sub_dic['uslope_p_90'].append(np.nan)
+                sub_dic['dslope_p_90'].append(np.nan)
+                sub_dic['frequency_p_90'].append(np.nan)
             else :    
-                sub_dic['ptp_90_hs_global'].append(np.nanmean(
-                    df_90_hs_global.PTP
+                sub_dic['ptp_p_90'].append(np.nanmean(
+                    df_p_90.PTP
                     ))
-                sub_dic['dslope_90_hs_global'].append(np.nanmean(
-                    df_90_hs_global.max_pos_slope_2nd_segment
+                sub_dic['uslope_p_90'].append(np.nanmean(
+                    df_p_90.max_pos_slope_2nd_segment
                     ))
-                sub_dic['uslope_90_hs_global'].append(np.nanmean(
-                    df_90_hs_global.inst_neg_1st_segment_slope
+                sub_dic['dslope_p_90'].append(np.nanmean(
+                    df_p_90.inst_neg_1st_segment_slope
                     ))
-                sub_dic['frequency_90_hs_global'].append(np.nanmean(
-                    1/df_90_hs_global.pos_halfway_period
+                sub_dic['frequency_p_90'].append(np.nanmean(
+                    1/df_p_90.pos_halfway_period
                     ))
-            if not df_90_hs_chan.shape[0]:
-                sub_dic['ptp_90_hs_chan'].append(np.nan)
-                sub_dic['uslope_90_hs_chan'].append(np.nan)
-                sub_dic['dslope_90_hs_chan'].append(np.nan)
-                sub_dic['frequency_90_hs_chan'].append(np.nan)
+                
+            if not df_p_80.shape[0]:
+                sub_dic['ptp_p_80'].append(np.nan)
+                sub_dic['uslope_p_80'].append(np.nan)
+                sub_dic['dslope_p_80'].append(np.nan)
+                sub_dic['frequency_p_80'].append(np.nan)
             else :
-                sub_dic['uslope_90_hs_chan'].append(np.nanmean(
-                    df_90_hs_chan.PTP
+                sub_dic['ptp_p_80'].append(np.nanmean(
+                    df_p_80.PTP
                     ))
-                sub_dic['ptp_90_hs_chan'].append(np.nanmean(
-                    df_90_hs_chan.max_pos_slope_2nd_segment
+                sub_dic['uslope_p_80'].append(np.nanmean(
+                    df_p_80.max_pos_slope_2nd_segment
                     ))
-                sub_dic['dslope_90_hs_chan'].append(np.nanmean(
-                    df_90_hs_chan.inst_neg_1st_segment_slope
+                sub_dic['dslope_p_80'].append(np.nanmean(
+                    df_p_80.inst_neg_1st_segment_slope
                     ))
-                sub_dic['frequency_90_hs_chan'].append(np.nanmean(
-                    1/df_90_hs_chan.pos_halfway_period
+                sub_dic['frequency_p_80'].append(np.nanmean(
+                    1/df_p_80.pos_halfway_period
+                    ))
+                
+            if not df_hs_90.shape[0]:
+                sub_dic['ptp_90hs'].append(np.nan)
+                sub_dic['uslope_90hs'].append(np.nan)
+                sub_dic['dslope_90hs'].append(np.nan)
+                sub_dic['frequency_90hs'].append(np.nan)
+            else :
+                sub_dic['ptp_90hs'].append(np.nanmean(
+                    df_hs_90.PTP
+                    ))
+                sub_dic['uslope_90hs'].append(np.nanmean(
+                    df_hs_90.max_pos_slope_2nd_segment
+                    ))
+                sub_dic['dslope_90hs'].append(np.nanmean(
+                    df_hs_90.inst_neg_1st_segment_slope
+                    ))
+                sub_dic['frequency_90hs'].append(np.nanmean(
+                    1/df_hs_90.pos_halfway_period
+                    ))
+                
+            if not df_hs_80.shape[0]:
+                sub_dic['ptp_80hs'].append(np.nan)
+                sub_dic['uslope_80hs'].append(np.nan)
+                sub_dic['dslope_80hs'].append(np.nan)
+                sub_dic['frequency_80hs'].append(np.nan)
+            else :
+                sub_dic['ptp_80hs'].append(np.nanmean(
+                    df_hs_80.PTP
+                    ))
+                sub_dic['uslope_80hs'].append(np.nanmean(
+                    df_hs_80.max_pos_slope_2nd_segment
+                    ))
+                sub_dic['dslope_80hs'].append(np.nanmean(
+                    df_hs_80.inst_neg_1st_segment_slope
+                    ))
+                sub_dic['frequency_80hs'].append(np.nanmean(
+                    1/df_hs_80.pos_halfway_period
                     ))
             
     df_feature = pd.DataFrame.from_dict(sub_dic)

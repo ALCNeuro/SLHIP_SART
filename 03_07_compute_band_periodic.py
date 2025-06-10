@@ -5,7 +5,7 @@ Created on Tues Nov 12 16:10:39 2024
 
 @author: arthurlecoz
 
-03_05_compute_band_power.py
+03_07_compute_band_periodic.py
 
 """
 # %% Paths
@@ -13,11 +13,15 @@ import mne, os, numpy as np, pandas as pd
 import SLHIP_config_ALC as config
 
 from glob import glob
-
 import statsmodels.formula.api as smf
-from statsmodels.stats.multitest import fdrcorrection
 
+from statsmodels.stats.multitest import fdrcorrection
+from statsmodels.nonparametric.smoothers_lowess import lowess
+from fooof import FOOOF
+from fooof.sim.gen import gen_aperiodic
+from fooof.bands import Bands
 from matplotlib.font_manager import FontProperties
+
 # font
 personal_path = '/Users/arthurlecoz/Library/Mobile Documents/com~apple~CloudDocs/Desktop/A_Thesis/Others/Fonts/aptos-font'
 font_path = personal_path + '/aptos-light.ttf'
@@ -27,9 +31,8 @@ bold_font = FontProperties(fname=personal_path + '/aptos-bold.ttf')
 cleanDataPath = config.cleanDataPath
 powerPath = config.powerPath
 
-bandpowerPath = os.path.join(powerPath, 'bandpower')
+bandpowerPath = os.path.join(powerPath, 'bandperiodic')
 reports_path = os.path.join(bandpowerPath, "reports")
-# epochs_files  = glob(os.path.join(cleanDataPath, "*epo.fif"))
 
 channels = np.array(config.eeg_channels)
 
@@ -98,6 +101,40 @@ for i_file, file in enumerate(files) :
                 window = window,
                 picks = channels
                 )
+        
+        for i_ch, channel in enumerate(channels) :
+            print(f'processing channel {channel}')
+            temp_list = []
+            for i_epoch in range(
+                    len(epochs[epochs.metadata.mindstate == ms])
+                    ) :
+                this_power = temp_power[i_epoch]                   
+                
+                psd = lowess(np.squeeze(
+                    this_power.copy().pick(channel).get_data()), 
+                    freqs, 0.075)[:, 1]
+                
+                if not psd.shape:
+                    input('inspect')
+                
+                if np.any(psd < 0) :
+                    for id_0 in np.where(psd<0)[0] :
+                        psd[id_0] = abs(psd).min()
+                        
+                fm = FOOOF(peak_width_limits = [.5, 6], aperiodic_mode="fixed")
+                fm.add_data(freqs, psd)
+                fm.fit()
+                
+                if fm.r_squared_ < .95 : continue
+                if fm.error_ > .1 : continue
+                
+                init_ap_fit = gen_aperiodic(
+                    fm.freqs, 
+                    fm._robust_ap_fit(fm.freqs, fm.power_spectrum)
+                    )
+                
+                init_flat_spec = fm.power_spectrum - init_ap_fit
+                temp_list.append(init_flat_spec)
             
         for i_epoch in range(
                 len(epochs[epochs.metadata.mindstate == ms])
@@ -132,7 +169,7 @@ for i_file, file in enumerate(files) :
                         bigdic[col].append(rel_bandpower_ch[col][i_ch])
                 
 df = pd.DataFrame.from_dict(bigdic)
-df.to_csv(os.path.join(bandpowerPath, "bandpower_all_ms.csv"))
+df.to_csv(os.path.join(bandpowerPath, "bandpower.csv"))
 
 # %% Plotting (should be on another script for cleanness)
 

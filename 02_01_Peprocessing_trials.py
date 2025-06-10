@@ -141,12 +141,7 @@ for i, file_path in enumerate(files) :
     if "HS_007" in sub_id :
         continue
     if "N1_009" in sub_id :
-        print("""
-              
-              ...This subject's data is different than the other, please manually process it for this step...
-              
-              """)
-        continue
+        input("Take over.")
     
     print(f"...Processing {sub_id}, file {i+1} / {len(files)}...")
     

@@ -42,7 +42,76 @@ threshold = dict(eeg = 300e-6)
 
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 
-# %% Loop
+# %% Single process
+
+mindstates = ['ON', 'MW', 'HALLU', 'MB']
+    
+for file in files :
+    # if subtype.startswith('N') : continue
+    sub_id = file.split('probes/')[-1].split('_epo')[0]
+    # session = sub_id[-2:]
+    
+    this_subject_savepath = os.path.join(
+        aperiodicPath, f"{sub_id}_aperiodic_psd.pickle"
+        )
+    
+    if not os.path.exists(this_subject_savepath) : 
+    
+        temp_dic = {mindstate : {chan : [] for chan in channels}
+                              for mindstate in mindstates}
+
+        print(f"...processing {sub_id}")
+        
+        epochs = mne.read_epochs(file, preload = True)
+        epochs.drop_bad(threshold)
+        # sf = epochs.info['sfreq']
+        
+        metadata = epochs.metadata
+        
+        for ms in mindstates:
+            print(f'processing {ms}')
+            if ms not in metadata.mindstate.unique() : 
+                for channel in channels :
+                    temp_dic[ms][channel].append(np.nan*np.empty(freqs.shape[0]))
+            else : 
+                temp_list = []
+                temp_power = epochs[epochs.metadata.mindstate == ms].compute_psd(
+                        method = method,
+                        fmin = fmin, 
+                        fmax = fmax,
+                        n_fft = n_fft,
+                        n_overlap = n_overlap,
+                        n_per_seg = n_per_seg,
+                        window = window,
+                        picks = channels
+                        )
+                for i_ch, channel in enumerate(channels) :
+                    print(f'processing channel {channel}')
+                    for i_epoch in range(
+                            len(epochs[epochs.metadata.mindstate == ms])
+                            ) :
+                        this_power = temp_power[i_epoch]                        
+                        
+                        # psd = lowess(np.squeeze(
+                        #     this_power.copy().pick(channel).get_data()), 
+                        #     freqs, 0.075)[:, 1]
+                        psd = np.squeeze(
+                            this_power.copy().pick(channel).get_data())
+                        
+                        if np.any(psd < 0) :
+                            for id_0 in np.where(psd<0)[0] :
+                                psd[id_0] = abs(psd).min()
+                                
+                        temp_list.append(psd) 
+                        
+                    temp_dic[ms][channel].append(
+                        np.nanmean(temp_list, axis = 0)
+                        )
+        with open (this_subject_savepath, 'wb') as handle:
+            pickle.dump(temp_dic, handle, protocol = pickle.HIGHEST_PROTOCOL)
+
+
+# %% Multiprocess
 
 mindstates = ['ON', 'MW', 'HALLU', 'MB']
     

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+{#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on 25/07/23
@@ -67,310 +67,152 @@ del df['Unnamed: 0']
 epochs = mne.read_epochs(glob(f"{cleanDataPath}/epochs_probes/*.fif")[0])
 
 # df = df.loc[df.subtype != 'HI']
-df = df.loc[~df.mindstate.isin(['DISTRACTED', 'MISS',])]
+df = df.loc[
+    (~df.mindstate.isin(['DISTRACTED', 'MISS']))
+    & (df.subtype != 'HI')
+    ]
 
 mindstates = ['ON', 'MW', 'MB', 'HALLU', 'FORGOT']
-subtypes = ['HS', 'N1', 'HI']
+subtypes = ['HS', 'N1']
 channels = config.eeg_channels
 
-mean_df = df[[
-    'sub_id', 'subtype', 'density_20', 'density_p_90', 'density_p_80',
-    'ptp_20', 'ptp_p_90', 'ptp_p_80', 'uslope_20', 'uslope_p_90',
-    'uslope_p_80', 'dslope_20', 'dslope_p_90', 'dslope_p_80',
-    'frequency_20', 'frequency_p_90', 'frequency_p_80', 'channel',
-    'mindstate', 'voluntary', 'sleepiness',
-    'rt_go', 'rt_nogo', 'hits', 'miss', 'correct_rejections',
-    'false_alarms']
-    ].groupby(
+mean_df = df.copy().drop(columns = ["daytime", "n_epoch", "nblock", "nprobe"])
+mean_df = mean_df.groupby(
            ['sub_id', 'subtype', 'channel', 'mindstate'], 
            as_index = False).mean()
-    
-# %% simple pointplot
-
-import seaborn as sns
-
-this_df = df[[
-    'sub_id', 'subtype', 
-    'density_20', 'density_90_hs_global','density_90_hs_chan', 
-    'ptp_20', 'ptp_90_hs_global', 'ptp_90_hs_chan',
-    'uslope_20', 'uslope_90_hs_global', 'uslope_90_hs_chan', 
-    'dslope_20', 'dslope_90_hs_global', 'dslope_90_hs_chan', 
-    'sleepiness', 'rt_go',
-    'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms'
-       ]].groupby(
-           ['sub_id', 'subtype'], 
-           as_index = False).mean() 
-
-data = this_df     
-y = 'density_20'
-x = "subtype"
-order = ['HS', 'N1', 'HI']
-# hue = "subtype"
-# hue_order = ['HS', 'N1', 'HI']    
-         
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (4, 4))
-sns.pointplot(
-    data = data, 
-    x = x,
-    y = y,
-    # hue = hue,
-    order = order,
-    # hue_order = hue_order,
-    errorbar = 'se',
-    capsize = 0.05,
-    # dodge = .4,
-    linestyle = 'none', 
-    palette = palette
-    )         
-sns.violinplot(
-    data = data, 
-    x = x,
-    y = y,
-    # hue = hue,
-    order = order,
-    # hue_order = hue_order,
-    fill = True,
-    alpha = 0.2,
-    # dodge = True,
-    linecolor = 'white',
-    inner = None,
-    legend = None,
-    cut = 1, 
-    palette = palette
-    )        
-sns.stripplot(
-    data = data, 
-    x = x,
-    y = y,
-    # hue = hue,
-    order = order,
-    # hue_order = hue_order,
-    alpha = 0.3,
-    # dodge = True,
-    legend = None, 
-    palette = palette
-    )
-
-ax.set_xticks(
-    np.linspace(0, 2, 3), 
-    ['HS', 'N1', 'HS'], 
-    font = bold_font, 
-    fontsize = 16
-    )
-ax.set_yticks(
-    np.linspace(0, 3, 4), 
-    np.linspace(0, 3, 4).astype(int), 
-    font = font, 
-    fontsize = 16
-    )
-ax.set_ylim(0, 3)
-ax.set_ylabel("SW Density (n/Epoch)", font=bold_font, fontsize = 20)
-ax.set_xlabel("", font=bold_font, fontsize = 20)
-sns.despine(bottom=True)
-ax.tick_params(
-    axis='x',          # changes apply to the x-axis
-    which='both',      # both major and minor ticks are affected
-    bottom=False,      # ticks along the bottom edge are off
-    top=False,         # ticks along the top edge are off
-    labelbottom=False,
-    )
-
-fig.tight_layout()
-
-plt.savefig(os.path.join(wavesPath, "figs", f"sw_{y}_subtype.png"), dpi = 300)
-
-print_stats = True
-if print_stats :
-    model = f"{y} ~ C(subtype, Treatment('N1'))"
-    md = smf.mixedlm(model, this_df, groups = this_df['sub_id'], missing = 'drop')
-    mdf = md.fit()
-    print(mdf.summary())
            
-# %% simple pointplot
+# %% Topo | Density | HS, NT1
 
-import seaborn as sns
-
-this_df = df[[
-    'sub_id', 'subtype', 
-    'density_20', 'density_90_hs_global','density_90_hs_chan', 
-    'ptp_20', 'ptp_90_hs_global', 'ptp_90_hs_chan',
-    'uslope_20', 'uslope_90_hs_global', 'uslope_90_hs_chan', 
-    'dslope_20', 'dslope_90_hs_global', 'dslope_90_hs_chan', 
-    'mindstate', 'sleepiness', 'rt_go',
-    'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms'
-       ]].groupby(
-           ['sub_id', 'subtype', 'mindstate'], 
-           as_index = False).mean() 
-
-data = this_df     
-y = 'density_20'
-x = "mindstate"
-order = ['ON', 'MW', 'MB', 'HALLU']
-hue = "subtype"
-hue_order = ['HS', 'N1', 'HI']    
-         
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (6, 14))
-sns.pointplot(
-    data = data, 
-    x = x,
-    y = y,
-    hue = hue,
-    order = order,
-    hue_order = hue_order,
-    errorbar = 'se',
-    capsize = 0.05,
-    dodge = .4,
-    linestyle = 'none'
-    )         
-sns.violinplot(
-    data = data, 
-    x = x,
-    y = y,
-    hue = hue,
-    order = order,
-    hue_order = hue_order,
-    fill = True,
-    alpha = 0.2,
-    dodge = True,
-    linecolor = 'white',
-    inner = None,
-    legend = None,
-    cut = 2
-    )        
-sns.stripplot(
-    data = data, 
-    x = x,
-    y = y,
-    hue = hue,
-    order = order,
-    hue_order = hue_order,
-    alpha = 0.3,
-    dodge = True,
-    legend = None
-    )
-
-print_stats = False
-if print_stats :
-    model = "density_20 ~ C(subtype, Treatment('HS')) * C(mindstate, Treatment('HALLU'))"
-    md = smf.mixedlm(model, this_df, groups = this_df['sub_id'], missing = 'drop')
-    mdf = md.fit()
-    print(mdf.summary())
-           
-# %% Topo | Density | HS, NT1, HI
-
-feature = 'density_90_hs_global'
-
-list_values = []
-for i_ms, mindstate in enumerate(mindstates) :
-    for subtype in subtypes :   
-        for channel in channels :
-            list_values.append(mean_df[feature].loc[
-                (mean_df["subtype"] == subtype)
-                & (mean_df["channel"] == channel)
-                ].mean())
-vmin = min(list_values)
-vmax = max(list_values)
+features = ['density_p_90', 'density_p_80', 'density_90hs', 'density_80hs']
 
 fig, ax = plt.subplots(
-    nrows = 3, 
-    ncols = 1,
-    figsize = (4,7),
+    nrows = 2, 
+    ncols = len(features),
+    figsize = (16,4),
     )
+for i_f, feature in enumerate(features) :
+    ax_hs = ax[0]
+    ax_nt = ax[1]
 
-list_hs = []
-list_n1 = []        
-list_hi = []        
-for channel in channels :
-    list_hs.append(mean_df[feature].loc[
-        (mean_df["subtype"] == "HS")
-        & (mean_df["channel"] == channel)
-        ].mean())
-    list_n1.append(mean_df[feature].loc[
-        (mean_df["subtype"] == "N1")
-        & (mean_df["channel"] == channel)
-        ].mean())
-    list_hi.append(mean_df[feature].loc[
-        (mean_df["subtype"] == "HI")
-        & (mean_df["channel"] == channel)
-        ].mean())
-
-if i_ms == 3 :
-    divider = make_axes_locatable(ax[0])
+    list_values = []
+    for i_ms, mindstate in enumerate(mindstates) :
+        for subtype in subtypes :   
+            for channel in channels :
+                list_values.append(mean_df[feature].loc[
+                    (mean_df["subtype"] == subtype)
+                    & (mean_df["channel"] == channel)
+                    ].mean())
+    vmin = min(list_values)
+    vmax = max(list_values)
+      
+    list_hs = []
+    list_n1 = []        
+    for channel in channels :
+        list_hs.append(mean_df[feature].loc[
+            (mean_df["subtype"] == "HS")
+            & (mean_df["channel"] == channel)
+            ].mean())
+        list_n1.append(mean_df[feature].loc[
+            (mean_df["subtype"] == "N1")
+            & (mean_df["channel"] == channel)
+            ].mean())
+    
+    divider = make_axes_locatable(ax_hs[i_f])
     cax = divider.append_axes("right", size = "5%", pad=0.05)
-im, cm = mne.viz.plot_topomap(
-    list_hs,
-    epochs.info,
-    axes = ax[0],
-    size = 2,
-    # names = channels,
-    show = False,
-    contours = 2,
-    vlim = (vmin, vmax),
-    cmap = "Purples"
-    )
-if i_ms == 3 :
+    im, cm = mne.viz.plot_topomap(
+        list_hs,
+        epochs.info,
+        axes = ax_hs[i_f],
+        size = 2,
+        # names = channels,
+        show = False,
+        contours = 2,
+        vlim = (vmin, vmax),
+        cmap = "Purples"
+        )
     fig.colorbar(im, cax = cax, orientation = 'vertical')
-# ax[0][i_sess].set_title(f"EASY - S{n_sess}")
-ax[0].set_title(f"{subtypes[0]}", font = bold_font)
-title = f"""
-<Slow Wave {feature}> by <Subtype>
-"""
-fig_text(
-   0.07, .94,
-   title,
-   fontsize=15,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-   ],
-   fig=fig
-)
-
-if i_ms == 3 :
-    divider = make_axes_locatable(ax[1])
+    ax_hs[i_f].set_title(f"CTL - {feature}", font = bold_font, fontsize = 12)
+    
+    divider = make_axes_locatable(ax_nt[i_f])
     cax = divider.append_axes("right", size = "5%", pad=0.05)
-im, cm = mne.viz.plot_topomap(
-    list_n1,
-    epochs.info,
-    axes = ax[1],
-    size = 2,
-    # names = channels,
-    show = False,
-    contours = 2,
-    vlim = (vmin, vmax),
-    cmap = "Purples"
+    im, cm = mne.viz.plot_topomap(
+        list_n1,
+        epochs.info,
+        axes = ax_nt[i_f],
+        size = 2,
+        # names = channels,
+        show = False,
+        contours = 2,
+        vlim = (vmin, vmax),
+        cmap = "Purples"
+        )
+    ax_nt[i_f].set_title(f"NT1 - {feature}", font = bold_font, fontsize = 12)
+    fig.colorbar(im, cax = cax, orientation = 'vertical')
+    plt.show(block = False)
+    fig.tight_layout()
+    
+    figsavename = os.path.join(
+        wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_density.png'
+        )
+    plt.savefig(figsavename, dpi = 300)
+    
+# %% Topo | LME - Subtype ME
+
+features = {
+    "density" : ['density_p_90', 'density_p_80', 'density_90hs', 'density_80hs'],
+    "ptp" : ['ptp_p_90','ptp_p_80', 'ptp_90hs', 'ptp_80hs'],
+    "dslope" : ['dslope_p_90', 'dslope_p_80', 'dslope_90hs', 'dslope_80hs'],
+    "uslope" : ['uslope_p_90', 'uslope_p_80', 'uslope_90hs', 'uslope_80hs'],
+    }
+
+which = "density"
+
+fig, ax = plt.subplots(
+    nrows = 1, ncols = len(features[which]), figsize = (14, 5)
     )
-# ax[1][i_sess].set_title(f"HARD - S{n_sess}")
-ax[1].set_title(f"{subtypes[1]}", font = bold_font)
-if i_ms == 3 :
+
+for i, feature in enumerate(features[which]):
+    model = f"{feature} ~ C(subtype, Treatment('HS'))" 
+    temp_tval = []; temp_pval = []; chan_l = []
+    for chan in channels :
+        subdf = df[
+            ['sub_id', 'subtype', 'channel', feature]
+            ].loc[
+            (df.channel == chan)
+            & (df.subtype.isin(['N1', 'HS']))
+            ].dropna()
+        md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
+        mdf = md.fit()
+        temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
+        temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
+        chan_l.append(chan)
+        
+    if np.any(np.isnan(temp_tval)) :
+        temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+         
+    # _, corrected_pval = fdrcorrection(temp_pval)
+    
+    divider = make_axes_locatable(ax[i])
+    cax = divider.append_axes("right", size = "5%", pad=0.05)
+    im, cm = mne.viz.plot_topomap(
+        data = temp_tval,
+        pos = epochs.info,
+        axes = ax[i],
+        contours = 3,
+        mask = np.asarray(temp_pval) <= 0.05,
+        mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                    linewidth=0, markersize=10),
+        cmap = "coolwarm",
+        # vlim = (-3, 3),
+        size = 2.5
+        )
     fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-if i_ms == 3 :
-    divider = make_axes_locatable(ax[2])
-    cax = divider.append_axes("right", size = "5%", pad=0.05)
-im, cm = mne.viz.plot_topomap(
-    list_hi,
-    epochs.info,
-    axes = ax[2],
-    size = 2,
-    # names = channels,
-    show = False,
-    contours = 2,
-    vlim = (vmin, vmax),
-    cmap = "Purples"
-    )
-# ax[1][i_sess].set_title(f"HARD - S{n_sess}")
-ax[2].set_title(f"{subtypes[2]}", font = bold_font)
-if i_ms == 3 :
-    fig.colorbar(im, cax = cax, orientation = 'vertical')
-plt.show(block = False)
-
-figsavename = os.path.join(
-    wavesPath, 'figs', f'topo_mindstates_subtypes_{feature}.png'
-    )
-plt.savefig(figsavename, dpi = 300)
+    ax[i].set_title(f"{feature} N1 > HS", fontweight = "bold", fontsize = 12)
+    
+    fig.tight_layout()
+        
+plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", f"me_subtype_{which}.png"), dpi = 300)    
 
 # %% NOT ENOUGH DATA LME Mindstate | Feature | HS, NT1, HI
 
@@ -440,220 +282,37 @@ fig.tight_layout()
 #     wavesPath, 'figs', f'topo_mindstates_subtypes_{feature}.png'
 #     )
 # plt.savefig(figsavename, dpi = 300)
-    
-# %% Topo | Feature | HS, NT1, HI | Mindstate
-
-feature = 'density_20'
-
-list_values = []
-for i_ms, mindstate in enumerate(mindstates) :
-    for subtype in subtypes :   
-        for channel in channels :
-            list_values.append(mean_df[feature].loc[
-                (mean_df["mindstate"] == mindstate)
-                & (mean_df["subtype"] == subtype)
-                & (mean_df["channel"] == channel)
-                ].mean())
-vmin = min(list_values)
-vmax = max(list_values)
-
-fig, ax = plt.subplots(
-    nrows = 3, 
-    ncols = len(mindstates),
-    figsize = (18,7),
-    # layout = 'tight'
-    )
-for i_ms, mindstate in enumerate(mindstates) :
-    list_hs = []
-    list_n1 = []        
-    list_hi = []        
-    for channel in channels :
-        list_hs.append(np.nanmean(mean_df[feature].loc[
-            (mean_df["subtype"] == "HS")
-            & (mean_df["mindstate"] == mindstate)
-            & (mean_df["channel"] == channel)
-            ], axis = 0))
-        list_n1.append(np.nanmean(mean_df[feature].loc[
-            (mean_df["subtype"] == "N1")
-            & (mean_df["mindstate"] == mindstate)
-            & (mean_df["channel"] == channel)
-            ], axis = 0))
-        list_hi.append(np.nanmean(mean_df[feature].loc[
-            (mean_df["subtype"] == "HI")
-            & (mean_df["mindstate"] == mindstate)
-            & (mean_df["channel"] == channel)
-            ], axis = 0))
-        
-    if np.any(np.isnan(list_hi)):
-        for t, tval in enumerate(list_hi) :
-            if np.isnan(tval):
-                list_hi[t] = np.nanmean(list_hi)
-    if np.any(np.isnan(list_hs)):
-        for t, tval in enumerate(list_hs) :
-            if np.isnan(tval):
-                list_hs[t] = np.nanmean(list_hs)
-        
-    if i_ms == 3 :
-        divider = make_axes_locatable(ax[0][i_ms])
-        cax = divider.append_axes("right", size = "5%", pad=0.05)
-    im, cm = mne.viz.plot_topomap(
-        list_hs,
-        epochs.info,
-        axes = ax[0][i_ms],
-        size = 2,
-        # names = channels,
-        show = False,
-        contours = 2,
-        vlim = (vmin, vmax),
-        cmap = "Purples"
-        )
-    if i_ms == 3 :
-        fig.colorbar(im, cax = cax, orientation = 'vertical')
-    # ax[0][i_sess].set_title(f"EASY - S{n_sess}")
-    ax[0][i_ms].set_title(f"{subtypes[0]} - {mindstate}", font = bold_font)
-    title = """
-    Topographies of <Slow Wave Upward Slope> according to the <Mindstates> and by <Subtype>
-    """
-    fig_text(
-       0.07, .94,
-       title,
-       fontsize=15,
-       ha='left', va='center',
-       color="k", font=font,
-       highlight_textprops=[
-          {'font': bold_font},
-          {'font': bold_font},
-          {'font': bold_font},
-       ],
-       fig=fig
-    )
-    
-    if i_ms == 3 :
-        divider = make_axes_locatable(ax[1][i_ms])
-        cax = divider.append_axes("right", size = "5%", pad=0.05)
-    im, cm = mne.viz.plot_topomap(
-        list_n1,
-        epochs.info,
-        axes = ax[1][i_ms],
-        size = 2,
-        # names = channels,
-        show = False,
-        contours = 2,
-        vlim = (vmin, vmax),
-        cmap = "Purples"
-        )
-    # ax[1][i_sess].set_title(f"HARD - S{n_sess}")
-    ax[1][i_ms].set_title(f"{subtypes[1]} - {mindstate}", font = bold_font)
-    if i_ms == 3 :
-        fig.colorbar(im, cax = cax, orientation = 'vertical')
-        
-    if i_ms == 3 :
-        divider = make_axes_locatable(ax[2][i_ms])
-        cax = divider.append_axes("right", size = "5%", pad=0.05)
-    im, cm = mne.viz.plot_topomap(
-        list_hi,
-        epochs.info,
-        axes = ax[2][i_ms],
-        size = 2,
-        # names = channels,
-        show = False,
-        contours = 2,
-        vlim = (vmin, vmax),
-        cmap = "Purples"
-        )
-    # ax[1][i_sess].set_title(f"HARD - S{n_sess}")
-    ax[2][i_ms].set_title(f"{subtypes[2]} - {mindstate}", font = bold_font)
-    if i_ms == 3 :
-        fig.colorbar(im, cax = cax, orientation = 'vertical')
-    plt.show(block = False)
-
-    figsavename = os.path.join(
-        wavesPath, 'figs', f'topo_mindstates_subtypes_{feature}.png'
-        )
-    # plt.savefig(figsavename, dpi = 300)
 
 # %% Topo | LME - MS > ON effect
 
-interest = 'density_20'
+compa_df = df.loc[df.subtype=="N1"]
+compa_df = compa_df.drop(columns=["n_epoch", "nprobe"]).groupby(
+    ["sub_id", "subtype", "channel", "mindstate", "nblock", "daytime"], as_index=False
+    ).mean()
 
-model = f"{interest} ~ C(mindstate, Treatment('ON'))" 
+interest = 'density'
 
-fig, ax = plt.subplots(
-    nrows = 1, ncols = len(mindstates[1:]), figsize = (18, 4))
-for i, mindstate in enumerate(mindstates[1:]):
-    temp_tval = []; temp_pval = []; chan_l = []
-    cond_df = mean_df.loc[mean_df.mindstate.isin(['ON', mindstate])]
-    for chan in channels :
-        subdf = cond_df[
-            ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
-            ].loc[(cond_df.channel == chan)].dropna()
-        md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
-        mdf = md.fit()
-        temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
-        temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
-        chan_l.append(chan)
+these_ms = ["ON", "MW", "MB", "FORGOT"]
+
+fig, axs = plt.subplots(
+    nrows = len(mindstates[1:]), ncols = len(features[interest]), figsize = (16, 16))
+
+for i, mindstate in enumerate(these_ms):
+    ax = axs[i]
+    for j, feat in enumerate(features[interest]) :
         
-    if np.any(np.isnan(temp_tval)) :
-        temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
-         
-    # _, corrected_pval = fdrcorrection(temp_pval)
-    
-    divider = make_axes_locatable(ax[i])
-    cax = divider.append_axes("right", size = "5%", pad=0.05)
-    im, cm = mne.viz.plot_topomap(
-        data = temp_tval,
-        pos = epochs.info,
-        axes = ax[i],
-        contours = 3,
-        mask = np.asarray(temp_pval) <= 0.05,
-        mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                    linewidth=0, markersize=6),
-        cmap = "viridis",
-        # vlim = (-4, 4)
-        )
-    fig.colorbar(im, cax = cax, orientation = 'vertical')
-
-    ax[i].set_title(f"{mindstate}", fontweight = "bold")
-
-
-title = f"""Topographies of <Slow Wave {interest}> according to the <Mindstate> VS <ON>"""
-fig_text(
-   0.07, .98,
-   title,
-   fontsize=15,
-   ha='left', va='center',
-   color="k", font=font,
-   highlight_textprops=[
-      {'font': bold_font},
-      {'font': bold_font},
-      {'font': bold_font},
-   ],
-   fig=fig
-)
-
-# %% Topo | LME - MS > ON effect
-
-interest = 'density_20'
-
-model = f"{interest} ~ C(mindstate, Treatment('ON'))" 
-
-for subtype in subtypes :
-    fig, ax = plt.subplots(
-        nrows = 1, ncols = len(mindstates[1:]), figsize = (18, 4))
-    for i, mindstate in enumerate(mindstates[1:]):
+        model = f"{feat} ~ C(mindstate, Treatment('HALLU'))" 
+        
         temp_tval = []; temp_pval = []; chan_l = []
-        cond_df = mean_df.loc[
-            (mean_df.mindstate.isin(['ON', mindstate]))
-            & (mean_df.subtype == subtype)
-            ]
+        cond_df = compa_df.loc[compa_df.mindstate.isin(['HALLU', mindstate])]
         for chan in channels :
             subdf = cond_df[
-                ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
+                ['sub_id', 'subtype', 'mindstate', 'channel', feat]
                 ].loc[(cond_df.channel == chan)].dropna()
             md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
             mdf = md.fit()
-            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
-            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
+            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('HALLU'))[T.{mindstate}]"])
+            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('HALLU'))[T.{mindstate}]"])
             chan_l.append(chan)
             
         if np.any(np.isnan(temp_tval)) :
@@ -661,12 +320,12 @@ for subtype in subtypes :
              
         # _, corrected_pval = fdrcorrection(temp_pval)
         
-        divider = make_axes_locatable(ax[i])
+        divider = make_axes_locatable(ax[j])
         cax = divider.append_axes("right", size = "5%", pad=0.05)
         im, cm = mne.viz.plot_topomap(
             data = temp_tval,
             pos = epochs.info,
-            axes = ax[i],
+            axes = ax[j],
             contours = 3,
             mask = np.asarray(temp_pval) <= 0.05,
             mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
@@ -676,137 +335,70 @@ for subtype in subtypes :
             )
         fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-        ax[i].set_title(f"{subtype} - {mindstate}", fontweight = "bold")
+        ax[j].set_title(f"{feat} {mindstate} > HALLU", fontweight = "bold", fontsize = 12)
+fig.tight_layout()
+plt.savefig(
+    os.path.join(
+        figs_path, "NT1_CTL", f"topo_NT1_MS_{interest}_fulldf_vshallu.png"), dpi = 300)
     
-    
-    title = f"""Topographies of <Slow Wave {interest}> according to the <Mindstate> VS <ON>"""
-    fig_text(
-       0.07, .98,
-       title,
-       fontsize=15,
-       ha='left', va='center',
-       color="k", font=font,
-       highlight_textprops=[
-          {'font': bold_font},
-          {'font': bold_font},
-          {'font': bold_font},
-       ],
-       fig=fig
-    )
+# %% Topo | LME - MS behav
 
-# %% Topo | LME - Explo Subtype ME
+group_oi = "HS"
 
-feature = "ptp_90_hs_global"
+compa_df = df.loc[df.subtype==group_oi]
+compa_df = compa_df.drop(columns=["n_epoch", "nprobe", "mindstate"]).groupby(
+    ["sub_id", "subtype", "channel", "nblock", "daytime"], as_index=False
+    ).mean()
 
-model = f"{feature} ~ C(subtype, Treatment('HS'))" 
-
-this_df = mean_df[[
-    'sub_id', 'subtype', 
-    'density_20', 'density_90_hs_global','density_90_hs_chan', 
-    'ptp_20', 'ptp_90_hs_global', 'ptp_90_hs_chan',
-    'uslope_20', 'uslope_90_hs_global', 'uslope_90_hs_chan', 
-    'dslope_20', 'dslope_90_hs_global', 'dslope_90_hs_chan', 
-    'channel', 'mindstate', 'sleepiness', 'rt_go',
-    'rt_nogo', 'hits', 'miss', 'correct_rejections', 'false_alarms'
-     ]].groupby(
-         ['sub_id', 'subtype', 'mindstate', 'channel'], as_index = False).mean()
+behav_f = "sleepiness"
+interest = 'dslope'
 
 fig, ax = plt.subplots(
-    nrows = 1, ncols = 3, figsize = (12, 5))
+    nrows = 1, ncols = len(features[interest]), figsize = (16, 4))
 
-for i_s, subtype in enumerate(['N1', 'HI']) :
+for j, feat in enumerate(features[interest]) :
+    model = f"{behav_f} ~ {feat}" 
     temp_tval = []; temp_pval = []; chan_l = []
     for chan in channels :
-        subdf = this_df[
-            ['sub_id', 'subtype', 'channel', feature, 'mindstate', 'sleepiness']
-            ].loc[
-            (this_df.channel == chan)
-            & (this_df.subtype.isin([subtype, 'HS']))
-            ].dropna()
-        md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
+        subdf = compa_df[
+            ['sub_id', 'subtype', 'channel', behav_f, feat]
+            ].loc[(compa_df.channel == chan)].dropna()
+        md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
         mdf = md.fit()
-        temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
-        temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
+        temp_tval.append(mdf.tvalues[feat])
+        temp_pval.append(mdf.pvalues[feat])
         chan_l.append(chan)
         
     if np.any(np.isnan(temp_tval)) :
         temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
          
-    _, corrected_pval = fdrcorrection(temp_pval)
+    # _, corrected_pval = fdrcorrection(temp_pval)
     
-    # divider = make_axes_locatable(ax[i_s])
-    # cax = divider.append_axes("right", size = "5%", pad=0.05)
+    divider = make_axes_locatable(ax[j])
+    cax = divider.append_axes("right", size = "5%", pad=0.05)
     im, cm = mne.viz.plot_topomap(
         data = temp_tval,
         pos = epochs.info,
-        axes = ax[i_s],
+        axes = ax[j],
         contours = 3,
         mask = np.asarray(temp_pval) <= 0.05,
         mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                    linewidth=0, markersize=12),
+                    linewidth=0, markersize=6),
         cmap = "viridis",
-        vlim = (-3, 3),
-        size = 2.5
+        # vlim = (-4, 4)
         )
-    # fig.colorbar(im, cax = cax, orientation = 'vertical')
-    
-    ax[i_s].set_title(f"{subtype} vs HS", fontweight = "bold", fontsize = 12)
-    
+    fig.colorbar(im, cax = cax, orientation = 'vertical')
 
-model = f"{feature} ~ C(subtype, Treatment('HI'))" 
-temp_tval = []; temp_pval = []; chan_l = []
-for chan in channels :
-    subdf = this_df[
-        ['sub_id', 'subtype', 'channel', feature, 'mindstate', 'sleepiness']
-        ].loc[
-        (this_df.channel == chan)
-        & (this_df.subtype.isin(["N1", "HI"]))
-        ].dropna()
-    md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
-    mdf = md.fit()
-    temp_tval.append(mdf.tvalues["C(subtype, Treatment('HI'))[T.N1]"])
-    temp_pval.append(mdf.pvalues["C(subtype, Treatment('HI'))[T.N1]"])
-    chan_l.append(chan)
-    
-if np.any(np.isnan(temp_tval)) :
-    temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
-     
-_, corrected_pval = fdrcorrection(temp_pval)
+    ax[j].set_title(f"{behav_f} ~ {feat}", fontweight = "bold", fontsize = 12)
+fig.tight_layout()
+plt.savefig(
+    os.path.join(
+        figs_path, 
+        "NT1_CTL", 
+        f"topo_{group_oi}_{behav_f}_{interest}_blockdf.png"
+        ), dpi = 300
+    )   
 
-divider = make_axes_locatable(ax[2])
-cax = divider.append_axes("right", size = "5%", pad=0.05)
-im, cm = mne.viz.plot_topomap(
-    data = temp_tval,
-    pos = epochs.info,
-    axes = ax[2],
-    contours = 3,
-    mask = np.asarray(temp_pval) <= 0.05,
-    mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                linewidth=0, markersize=12),
-    cmap = "viridis",
-    vlim = (-3, 3),
-    size = 2.5
-    )
-cb = plt.colorbar(im, cax = cax, orientation = 'vertical')
-cb.ax.set_yticks(np.linspace(-3, 3, 5), np.linspace(-3, 3, 5), font = bold_font, fontsize = 16)
-
-ax[2].set_title("N1 vs HI", fontweight = "bold", fontsize = 12)
-    
-# title = """ Topographies of <Subtype Main Effect> on <Slow Wave Density> """
-# fig_text(
-#    0.07, .94,
-#    title,
-#    fontsize=15,
-#    ha='left', va='center',
-#    color="k", font=font,
-#    highlight_textprops=[
-#       {'font': bold_font},
-#       {'font': bold_font},
-#    ],
-#    fig=fig
-# )
-
-# plt.savefig(os.path.join(wavesPath, "figs", f"me_subtype_{feature}.png"), dpi = 300)
 
 #%% DELTA THETA
 

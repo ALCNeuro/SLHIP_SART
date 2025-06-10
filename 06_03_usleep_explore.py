@@ -66,92 +66,105 @@ subtype_palette = ["#8d99ae", "#d00000", "#ffb703"]
 
 # %% Script
 
-big_dict = {col : [] for col in cols_oi}
+this_bigsavepath = os.path.join(
+    path_usleep, 'usleep', f'df_proba_probes_{time_window_oi}_{usleep_model}.csv')
 
-file = files[0]
+if os.path.exists(this_bigsavepath) :
+    df = pd.read_csv(this_bigsavepath)
+    del df['Unnamed: 0']
+    
+else : 
 
-for i, file in enumerate(files) :
-    sub_id = file.split('USleep/')[-1].split('_hyp')[0]
-    session = sub_id[-2:]
-    if (sub_id == "N1_001_PM" or 'HS_008' in sub_id or "HS_007" in sub_id) : continue
+    big_dict = {col : [] for col in cols_oi}
     
-    #### Extract EEG Infos
-    raw_path = glob(os.path.join(path_data, 'experiment', f'sub_{sub_id[:-3]}', f'*SART*{session}*.vhdr'))[0]
-    raw = mne.io.read_raw_brainvision(raw_path, preload=True)
-    sf = raw.info['sfreq']
-    events, event_id = mne.events_from_annotations(raw)
-    ms_probes =  np.stack(
-        [event for i, event in enumerate(events[events[:, 2] == 128]) 
-         if not i%3])
-    sec_ms_probes = np.round(ms_probes[:,0]/sf).astype(int)
-    behav_paths = glob(os.path.join(
-        path_data, "experiment", f"sub_{sub_id[:-3]}", "*.mat"
-        ))
+    file = files[0]
     
-    #### Extract Behav Infos
-    if len(behav_paths) < 1 :
-        print(f"\nNo behav_path found for {sub_id}... Look into it! Skipping for now...")
-        continue
-    if session == "AM" :
-        behav_path = behav_paths[0]
-    else :
-        behav_path = behav_paths[1]
-    mat = loadmat(behav_path)
-    df_probe = pd.DataFrame(
-        mat['probe_res'], 
-        columns = probe_col)
-    if any(df_probe.PQ1_respval.isna()) :
-        df_probe.PQ1_respval.replace(np.nan, 0, inplace = True)
+    for i, file in enumerate(files) :
+        sub_id = file.split('USleep/')[-1].split('_hyp')[0]
+        session = sub_id[-2:]
+        if (sub_id == "N1_001_PM" or 'HS_008' in sub_id or "HS_007" in sub_id) : continue
         
-    ms_answers = np.array(
-        [ms_dic[value] for value in df_probe.PQ1_respval.values]
-        )
-    vol_answers = df_probe.PQ2_respval.values
-    sleepi_answers = df_probe.PQ3_respval.values
-    
-    print(f"""\nIn {sub_id} file, were found :
-        * {ms_probes.shape[0]} Probes (first question)
-        -> {ms_answers.shape[0]} MS Answers
-        -> {vol_answers.shape[0]} Voluntary Answers
-        -> {sleepi_answers.shape[0]} Sleepiness answers""")
-    
-    if not len(ms_probes) == len(ms_answers) : 
-        print(f"!!!\n{sub_id} : Careful, inconsistencies found between EEG and Behav\n!!!")
-        continue
-    
-    #### Extract HD Infos
-    av_confidence_scores = np.load(file, allow_pickle=True)
-    # Divide score by the total number of chans (because it sums acros chans) and focus on the last 10s
-    confidence_scores = (av_confidence_scores/22)
-    # Take only the scores before the probes, remove the last probe :
-    # U sleep might use a long time window and derive HD at the second scale.
-    # probe_conf_scores = confidence_scores[oi_sec_ms_probes[:-time_window_oi]]
-    
-    for probe in range(ms_answers.shape[0]-1):
-        this_conf_scores = np.mean(
-            confidence_scores[
-                sec_ms_probes[probe]-time_window_oi:sec_ms_probes[probe]
-                ], axis=0
+        #### Extract EEG Infos
+        raw_path = glob(os.path.join(path_data, 'experiment', f'sub_{sub_id[:-3]}', f'*SART*{session}*.vhdr'))[0]
+        raw = mne.io.read_raw_brainvision(raw_path, preload=True)
+        sf = raw.info['sfreq']
+        events, event_id = mne.events_from_annotations(raw)
+        ms_probes =  np.stack(
+            [event for i, event in enumerate(events[events[:, 2] == 128]) 
+             if not i%3])
+        sec_ms_probes = np.round(ms_probes[:,0]/sf).astype(int)
+        behav_paths = glob(os.path.join(
+            path_data, "experiment", f"sub_{sub_id[:-3]}", "*.mat"
+            ))
+        
+        #### Extract Behav Infos
+        if len(behav_paths) < 1 :
+            print(f"\nNo behav_path found for {sub_id}... Look into it! Skipping for now...")
+            continue
+        if session == "AM" :
+            behav_path = behav_paths[0]
+        else :
+            behav_path = behav_paths[1]
+        mat = loadmat(behav_path)
+        df_probe = pd.DataFrame(
+            mat['probe_res'], 
+            columns = probe_col)
+        if any(df_probe.PQ1_respval.isna()) :
+            df_probe.PQ1_respval.replace(np.nan, 0, inplace = True)
+            
+        ms_answers = np.array(
+            [ms_dic[value] for value in df_probe.PQ1_respval.values]
             )
-        big_dict["sub_id"].append(sub_id)
-        big_dict["group"].append(sub_id[:2])
-        big_dict["session"].append(session)
-        big_dict["nprobe"].append(probe)
-        big_dict["mindstate"].append(ms_answers[probe])
-        big_dict["voluntary"].append(vol_answers[probe])
-        big_dict["sleepiness"].append(sleepi_answers[probe])
-        big_dict["P_WAKE"].append(this_conf_scores[0])
-        big_dict["P_N1"].append(this_conf_scores[1])
-        big_dict["P_N2"].append(this_conf_scores[2])
-        big_dict["P_N3"].append(this_conf_scores[3])
-        big_dict["P_REM"].append(this_conf_scores[4])
-     
-df = pd.DataFrame.from_dict(big_dict)
-df.to_csv(os.path.join(path_usleep, f'df_proba_probes_{time_window_oi}_{usleep_model}.csv'))
+        vol_answers = df_probe.PQ2_respval.values
+        sleepi_answers = df_probe.PQ3_respval.values
+        
+        print(f"""\nIn {sub_id} file, were found :
+            * {ms_probes.shape[0]} Probes (first question)
+            -> {ms_answers.shape[0]} MS Answers
+            -> {vol_answers.shape[0]} Voluntary Answers
+            -> {sleepi_answers.shape[0]} Sleepiness answers""")
+        
+        if not len(ms_probes) == len(ms_answers) : 
+            print(f"!!!\n{sub_id} : Careful, inconsistencies found between EEG and Behav\n!!!")
+            continue
+        
+        #### Extract HD Infos
+        av_confidence_scores = np.load(file, allow_pickle=True)
+        # Divide score by the total number of chans (because it sums acros chans) and focus on the last 10s
+        confidence_scores = (av_confidence_scores/22)
+        # Take only the scores before the probes, remove the last probe :
+        # U sleep might use a long time window and derive HD at the second scale.
+        # probe_conf_scores = confidence_scores[oi_sec_ms_probes[:-time_window_oi]]
+        
+        for probe in range(ms_answers.shape[0]-1):
+            this_conf_scores = np.mean(
+                confidence_scores[
+                    sec_ms_probes[probe]-time_window_oi:sec_ms_probes[probe]
+                    ], axis=0
+                )
+            big_dict["sub_id"].append(sub_id)
+            big_dict["group"].append(sub_id[:2])
+            big_dict["session"].append(session)
+            big_dict["nprobe"].append(probe)
+            big_dict["mindstate"].append(ms_answers[probe])
+            big_dict["voluntary"].append(vol_answers[probe])
+            big_dict["sleepiness"].append(sleepi_answers[probe])
+            big_dict["P_WAKE"].append(this_conf_scores[0])
+            big_dict["P_N1"].append(this_conf_scores[1])
+            big_dict["P_N2"].append(this_conf_scores[2])
+            big_dict["P_N3"].append(this_conf_scores[3])
+            big_dict["P_REM"].append(this_conf_scores[4])
+         
+    df = pd.DataFrame.from_dict(big_dict)
+    df.to_csv(this_bigsavepath)
 
 # %% 
 
 df_oi = df.loc[df.mindstate.isin(["ON", "MW", "MB", "HALLU", "FORGOT"])]
+
+sub_df = df_oi.loc[df.group != "HI"]
+sub_df["P_SLEEP"] = np.sum(sub_df[['P_N1', 'P_N2', 'P_N3', 'P_REM']], axis = 1)
+sub_df.to_csv(os.path.join(path_usleep, "usleep", "figs", "nt1_ctl_hypno.csv"))
 
 mean_df = df_oi[
     ["sub_id", "group", "nprobe", "mindstate", "sleepiness",
@@ -217,13 +230,13 @@ ax.set_xticks(
     fontsize = 12)
 ax.set_yticks(
     ticks = np.linspace(0, np.round(data[y].max(), 1), 5), 
-    labels = np.linspace(0, np.round(data[y].max(), 1), 5), 
+    labels = np.round(np.linspace(0, np.round(data[y].max(), 1), 5), 1), 
     font = font, fontsize = 14)
 sns.despine()
 fig.tight_layout()
 
 plt.savefig(
-    os.path.join(path_usleep, "figs", f"{y}_probe_me_nt1_hs.png"), 
+    os.path.join(path_usleep, "usleep", "figs", f"{y}_probe_me_nt1_hs.png"), 
     dpi=200
     )
 
@@ -307,10 +320,64 @@ for i_p, p in enumerate(poi):
 
 fig.tight_layout(pad=1.5)
 
-# plt.savefig(
-#     os.path.join(path_usleep, "figs", "proba_probe_me_subtype.png"), 
-#     dpi=200
-#     )
+plt.savefig(
+    os.path.join(path_usleep, "usleep", "figs", "proba_probe_me_group_mindstate.png"), 
+    dpi=200
+    )
+
+# %% Plots Subtype x Mindstate
+
+poi = ["P_WAKE", "P_N1", "P_N2", "P_REM"]
+# poi = ["P_WAKE", "P_REM"]
+data = mean_df.copy().loc[mean_df.group != "HI"]
+
+hue = "group"
+hue_order = ["HS", "N1"]   
+x = "mindstate"
+order = ["ON", "MW", "MB", "HALLU", "FORGOT"]   
+
+fig, axs = plt.subplots(
+    nrows = len(poi),
+    ncols = 1,
+    figsize = (4,10),
+    sharex=True,
+    sharey=True
+    )
+for i_p, p in enumerate(poi):
+
+    y = p
+    
+    sns.boxplot(
+        data = data, 
+        x = x,
+        y = y,
+        order = order,
+        hue = hue,
+        hue_order = hue_order,
+        palette = subtype_palette[:2],
+        dodge=True,
+        gap = .1,
+        fill=False,
+        ax = axs[i_p]
+        )
+    
+    axs[i_p].set_ylabel(p, size = 18, font = bold_font)
+    axs[i_p].set_xlabel('Group', size = 18, font = bold_font)
+    axs[i_p].set_ylim(0, 1)
+    axs[i_p].get_legend().remove()
+    
+    axs[i_p].set_yticks(
+        ticks = np.arange(0, 1.2, .2), 
+        labels = np.arange(0, 120, 20), 
+        font = font, fontsize = 12)
+    sns.despine()
+
+fig.tight_layout(pad=1.5)
+
+plt.savefig(
+    os.path.join(path_usleep, "usleep", "figs", "nt1_ctl_boxplot_group_mindstate.png"), 
+    dpi=200
+    )
 
 
 # %% Stats Subtype x Mindstate
@@ -486,3 +553,63 @@ fig.tight_layout(pad=1.5)
 #     os.path.join(path_usleep, "figs", "proba_probe_me_subtype.png"), 
 #     dpi=200
 #     )
+
+# %% Probability of Sleep
+# %% Plots Subtype x Mindstate
+
+this_df = sub_df[
+    ["sub_id", "group", "mindstate", "P_WAKE", "P_SLEEP"]
+    ].groupby(["sub_id", "group", "mindstate"], 
+              as_index=False
+              ).mean()
+
+poi = ["P_WAKE", "P_SLEEP"]
+data = this_df.copy()
+
+hue = "group"
+hue_order = ["HS", "N1"]   
+x = "mindstate"
+order = ["ON", "MW", "MB", "HALLU", "FORGOT"]
+
+fig, axs = plt.subplots(
+    nrows = len(poi),
+    ncols = 1,
+    figsize = (4,6),
+    sharex=True,
+    sharey=True
+    )
+for i_p, p in enumerate(poi):
+
+    y = p
+    
+    sns.boxplot(
+        data = data, 
+        x = x,
+        y = y,
+        order = order,
+        hue = hue,
+        hue_order = hue_order,
+        palette = subtype_palette[:2],
+        dodge=True,
+        gap = .1,
+        fill=False,
+        ax = axs[i_p],
+        legend = None
+        )
+    
+    axs[i_p].set_ylabel(p, size = 14, font = bold_font)
+    axs[i_p].set_xlabel('Mindstate', size = 14, font = bold_font)
+    axs[i_p].set_ylim(0, 1)
+    # ax.set_xticks(
+    #     ticks = np.arange(0, 2, 1), 
+    #     labels = ["HS", "N1", "HI"]   ,
+    #     font = font, 
+    #     fontsize = 10)
+    
+    axs[i_p].set_yticks(
+        ticks = np.arange(0, 1.2, .2), 
+        labels = np.arange(0, 120, 20), 
+        font = font, fontsize = 12)
+    sns.despine()
+
+fig.tight_layout(pad=1.5)

@@ -24,29 +24,29 @@ def SW_detect(file_path):
     import mne
     import os
     
-    import SLHIP_config_ALC as config
     swDataPath = config.wavesPath
-    
-    eeg_epochs_data = mne.read_epochs(file_path, preload = True)
-    eeg_epochs_data.pick('eeg')
-    metadata = eeg_epochs_data.metadata
-    
-    sub_id = metadata.sub_id.unique()[0]
-    
-    ms_dic_int = {
-        'ON' : 1,
-        'MW' : 2,
-        'MB' : 3,
-        'HALLU' : 4,
-        'FORGOT' : 5,
-        'DISTRACTED' : 6,
-        'MISS' : 7
-        }
-    ms_dic_str = {value : key for key, value in ms_dic_int.items()}
-    
+    sub_id = file_path.split("probes/")[-1].split('_epo')[0]
     waveSavingPath = f"{swDataPath}/all_waves/{sub_id}.csv"
     
     if not os.path.exists(waveSavingPath):
+    
+        eeg_epochs_data = mne.read_epochs(file_path, preload = True)
+        eeg_epochs_data.pick('eeg')
+        metadata = eeg_epochs_data.metadata
+        
+        sub_id = metadata.sub_id.unique()[0]
+        
+        ms_dic_int = {
+            'ON' : 1,
+            'MW' : 2,
+            'MB' : 3,
+            'HALLU' : 4,
+            'FORGOT' : 5,
+            'DISTRACTED' : 6,
+            'MISS' : 7
+            }
+        ms_dic_str = {value : key for key, value in ms_dic_int.items()}
+        
     
         filt_range = [0.5, 10] # in Hz
         thr_value = 0.1
