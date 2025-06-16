@@ -73,7 +73,7 @@ ms_keydic = {}
 
 # subtype_palette = ["#4a5759", "#bf0603", "#ffc300"]
 subtype_palette = ["#8d99ae", "#d00000"]
-ms_palette = ["#FFC000", "#00B050", "#0070C0", "#7030A0", "#7F7F7F"]
+ms_palette = ["#FFC000", "#00B050", "#0070C0", "#7030A0", "#000000"]
 
 # subtype_palette = ["#8d99ae", "#d00000"]
 
@@ -299,6 +299,9 @@ plt.show()
 
 # %% RadarPlot | Behavioral Diff MS
 
+radar_palette = ["#FFC000", "#00B050", "#7030A0", "#0070C0", "#000000"]
+
+
 df_rplot = sub_df[[
     'rt_go', 'std_rtgo', 'miss','false_alarms','mindstate', 'sleepiness']
     ].copy()
@@ -358,9 +361,9 @@ fig, axes = plt.subplots(1, 5, figsize=(14, 3), subplot_kw={'projection': 'polar
 on_padded     = df_padded.loc['ON'].tolist() + [df_padded.loc['ON'].tolist()[0]]
 forgot_padded = df_padded.loc['FORGOT'].tolist() + [df_padded.loc['FORGOT'].tolist()[0]]
 
-for ax, mindstate, i in zip(axes, (["ON", "MW_I", "MB", "MW_H", "FORGOT"]), range(5)):
+for ax, mindstate, i in zip(axes, (["ON", "MW_I", "MW_H", "MB", "FORGOT"]), range(5)):
     
-    this_color = ms_palette[i]
+    this_color = radar_palette[i]
     # (a) Plot ON (thin dashed gray) and FORGOT (thin dashed gray) as reference
     ax.plot(angles, on_padded,      linestyle='--', color='gray', linewidth=1)#, label='ON   (≈0.1)')
     ax.plot(angles, forgot_padded,  linestyle='--', color='gray', linewidth=1)#, label='FORGOT   (≈0.9)')
@@ -374,35 +377,13 @@ for ax, mindstate, i in zip(axes, (["ON", "MW_I", "MB", "MW_H", "FORGOT"]), rang
     # (c) Annotate each spoke with its raw (un‐normalized) number:
     raw_vals = mean_rplot.loc[mindstate].tolist()
     raw_vals += raw_vals[:1]
-    # for angle, pad_val, raw in zip(angles, padded_vals, raw_vals):
-    #     if mindstate in ["MB", "MW_H", "FORGOT"] :
-    #         ax.text(
-    #             angle, 
-    #             pad_val - 0.15, 
-    #             f"{raw:.2f}",
-    #             ha='center', 
-    #             va='center', 
-    #             fontsize=7,
-    #             font = font,
-    #             color='black'
-    #             )
-    #     else : 
-    #         ax.text(
-    #             angle, 
-    #             pad_val + 0.10, 
-    #             f"{raw:.2f}",
-    #             ha='center', 
-    #             va='center', 
-    #             fontsize=7,
-    #             font = font,
-    #             color='black'
-    #             )
     
     # (d) Tidy up labels & limits:
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(
-        ["RT Go", "STD RT Go", "Misses", "False Alarms", "Sleepiness"], 
-        font = font, fontsize=10)
+    # ax.set_xticklabels(
+    #     ["RT", "STD RT", "Misses", "False Alarms", "Sleepiness"], 
+    #     font = font, fontsize=10)
+    ax.set_xticklabels([])
     # Give a bit of radial margin so ON=0.1 and FORGOT=0.9 don't hug the exact center/edge
     ax.set_ylim(0.0, 1.0)  
     # If you want any radial ticks visible, you can do something like
@@ -416,93 +397,65 @@ for ax, mindstate, i in zip(axes, (["ON", "MW_I", "MB", "MW_H", "FORGOT"]), rang
     # (Optional) also turn off all radial/grid lines:
     ax.grid(True)
     ax.set_ylim(0, .9)
-
-# (5) One shared legend for the ON/FORGOT reference lines + each mindstate’s label:
-# handles, labels = axes[-1].get_legend_handles_labels()
-# fig.legend(handles, labels, loc='upper center', ncol=3, fontsize=9)
-
-plt.suptitle("Five Mindstates (with ON≈0.1 & FORGOT≈0.9 as Thresholds)", y=1.05)
-# plt.tight_layout()
+    
+plt.tight_layout(pad=2)
 plt.show()
 plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
 
-# %% Separate Radarplots
+# %% Radar Behav Subtype
 
-for i, mindstate in enumerate(["ON", "MW_I", "MB", "MW_H", "FORGOT"]) :
-    fig, ax = plt.subplots(
-        1, 1, figsize=(5, 5), subplot_kw={'projection': 'polar'}
-        )
+group_means = sub_df.groupby('subtype')[[
+    'rt_go','std_rtgo','miss','false_alarms','sleepiness'
+    ]].mean()
+
+df_group = group_means.copy()
+for col in df_group.columns:
+    mn, mx = mean_rplot[col].min(), mean_rplot[col].max()
+    df_group[col] = ((df_group[col] - mn) / (mx - mn))*span + p
     
-    # Grab the padded‐norm vectors for ON and FORGOT, so we can overlay them on every subplot.
-    on_padded     = df_padded.loc['ON'].tolist() + [df_padded.loc['ON'].tolist()[0]]
-    forgot_padded = df_padded.loc['FORGOT'].tolist() + [df_padded.loc['FORGOT'].tolist()[0]]
-        
-    this_color = ms_palette[i]
-    # (a) Plot ON (thin dashed gray) and FORGOT (thin dashed gray) as reference
-    # ax.plot(angles, on_padded,      linestyle='--', color='gray', linewidth=1)#, label='ON   (≈0.1)')
-    # ax.plot(angles, forgot_padded,  linestyle='--', color='gray', linewidth=1)#, label='FORGOT   (≈0.9)')
-    
-    # (b) Plot this mindstate’s padded values (solid blue):
-    padded_vals = df_padded.loc[mindstate].tolist()
-    padded_vals += padded_vals[:1]
-    ax.plot(angles, padded_vals, linewidth=2, label=mindstate, color = this_color)
-    ax.fill(angles, padded_vals, alpha=0.3, color = this_color)
-    
-    # (c) Annotate each spoke with its raw (un‐normalized) number:
-    raw_vals = mean_rplot.loc[mindstate].tolist()
-    raw_vals += raw_vals[:1]
-    # for angle, pad_val, raw in zip(angles, padded_vals, raw_vals):
-    #     if mindstate in ["MB", "MW_H", "FORGOT"] :
-    #         ax.text(
-    #             angle, 
-    #             pad_val - 0.15, 
-    #             f"{raw:.2f}",
-    #             ha='center', 
-    #             va='center', 
-    #             fontsize=7,
-    #             font = font,
-    #             color='black'
-    #             )
-    #     else : 
-    #         ax.text(
-    #             angle, 
-    #             pad_val + 0.10, 
-    #             f"{raw:.2f}",
-    #             ha='center', 
-    #             va='center', 
-    #             fontsize=7,
-    #             font = font,
-    #             color='black'
-    #             )
-    
-    # (d) Tidy up labels & limits:
+fig, axes = plt.subplots(
+    nrows = 1, 
+    ncols = 2, 
+    figsize=(5.6, 3), 
+    subplot_kw={'projection':'polar'}
+    )
+
+for i, grp in enumerate(['HS','N1']):
+    ax = axes[i]
+    # draw ON/FORGET reference exactly the same way...
+    ax.plot(angles, on_padded,      '--', color='gray',   linewidth=1)
+    ax.plot(angles, forgot_padded,  '--', color='gray',   linewidth=1)
+
+    # draw the group polygon in its own color:
+    vals = df_group.loc[grp].tolist() + [df_group.loc[grp].tolist()[0]]
+    ax.plot(angles, vals, linewidth=2, color=colors[grp], label=grp)
+    ax.fill(angles, vals, alpha=0.3, color=colors[grp])
+
+    # annotate raw values if you like (just as you do above)
+    raw = group_means.loc[grp].tolist()
+    raw += raw[:1]
+    # for ang, pad, r in zip(angles, vals, raw):
+    #     ax.text(ang, pad+0.05, f"{r:.1f}", ha='center', va='center', fontsize=7)
+
+    # copy over all of your xtick, yticks, spine, grid, title, etc.
     ax.set_xticks(angles[:-1])
-    # ax.set_xticklabels(
-    #     ["RT Go", "STD RT Go", "Misses", "False Alarms", "Sleepiness"], 
-    #     font = font, fontsize=10)
-    ax.set_xticklabels([])
-    # Give a bit of radial margin so ON=0.1 and FORGOT=0.9 don't hug the exact center/edge
-    ax.set_ylim(0.0, 1.0)  
-    # If you want any radial ticks visible, you can do something like
-    ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])  # keep whichever rings you like
-    ax.set_yticklabels([])      # hide the numeric labels if you prefer
+    ax.set_xticklabels(
+        ['RT','STD RT','Misses','False Alarms','Sleepiness'], 
+        font = font, 
+        fontsize = 10
+        )
+    ax.set_ylim(0,.9)
     ax.set_yticks([])
-    # ax.set_title(dic_label[mindstate], font = bold_font, fontsize=14)
-    # Hide the circular border
     ax.spines['polar'].set_visible(False)
+    ax.grid(True)
+    ax.set_title(grp, font = bold_font, fontsize=14)
     
-    # (Optional) also turn off all radial/grid lines:
-    ax.grid(False)
-    ax.set_ylim(0, .9)
+# fig.tight_layout()
+plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_ST_Behav.png"), dpi=300)
     
-    # (5) One shared legend for the ON/FORGOT reference lines + each mindstate’s label:
-    # handles, labels = axes[-1].get_legend_handles_labels()
-    # fig.legend(handles, labels, loc='upper center', ncol=3, fontsize=9)
-    
-    # plt.suptitle("Five Mindstates (with ON≈0.1 & FORGOT≈0.9 as Thresholds)", y=1.05)
-    # plt.tight_layout()
-    plt.show()
-    plt.savefig(os.path.join(behavpath, "NT1_CTL", f"{mindstate}_Radar.png"), dpi=300)
+
+
+
 
 # %% RadarPlot | Behavioral Diff MS
 
@@ -633,7 +586,7 @@ plt.suptitle("Five Mindstates (with ON≈0.1 & FORGOT≈0.9 as Thresholds)", y=1
 plt.show()
 plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
 
-    # %% ready fig ms %
+# %% ready fig ms %
 
 # coi = ['sub_id', 'subtype', 'mindstate', 'percentage']
 coi = ['sub_id', 'subtype', 'daytime', 'mindstate', 'percentage']
@@ -685,7 +638,6 @@ sns.barplot(
     order = order,
     hue_order = hue_order,
     errorbar='se', 
-    n_boot=1000, 
     orient=None, 
     palette=subtype_palette, 
     fill=False,
@@ -697,38 +649,38 @@ sns.barplot(
     ax=ax,
     legend=None
     )
-# sns.stripplot(
-#     data = data, 
-#     x = x,
-#     y = y,
-#     hue = hue,
-#     order = order,
-#     hue_order = hue_order,
-#     alpha = 0.1,
-#     dodge = True,
-#     legend = None,
-#     palette = subtype_palette
-#     )
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    alpha = 0.1,
+    dodge = True,
+    legend = None,
+    palette = subtype_palette
+    )
 
-ax.set_ylabel('Pourcentage %', size = 24, font = bold_font)
-ax.set_xlabel('Mindstate', size = 24, font = bold_font)
+ax.set_ylabel('Pourcentage %', size = 18, font = bold_font)
+ax.set_xlabel('Mindstate', size = 18, font = bold_font)
 ax.set_ylim(0, 1)
 ax.set_xticks(
     ticks = np.arange(0, 5, 1), 
     # labels = ["ON", "MW", "MB", "HALLU", "FGT", 'DTD'],
-    labels = ["ON", "HALLU", "MW", "MB", "FGT"],
+    labels = ["ON", "HA", "MW", "MB", "FG"],
     # labels = ["ON", "MW", "MB", "HALLU"],
     font = font, 
-    fontsize = 16)
+    fontsize = 14)
 ax.set_yticks(
     ticks = np.arange(0, 1.2, .2), 
     labels = np.arange(0, 120, 20), 
     font = font, 
-    fontsize = 16)
+    fontsize = 14)
 sns.despine()
 fig.tight_layout()
 
-plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)
+plt.savefig(os.path.join(behavpath, "NT1_CTL", "point_strip_per_mindstates_by_subtype.png"), dpi=200)
 
 # %% Stats
 
@@ -749,29 +701,35 @@ print(model_result.summary())
 
 # %% Ready figure % Sleepi
 
-coi = ['sub_id', 'subtype', 'daytime', 'sleepiness', 'percentage']
+coi = ['sub_id', 'subtype', 'daytime', 'mindstate', 'sleepiness', 'percentage']
 dic = {c : [] for c in coi}
 
 for sub_id in df.sub_id.unique() :    
     this_df = df.loc[df['sub_id'] == sub_id]
     for dt in this_df.daytime.unique() :
         df_dt = this_df.loc[this_df['daytime'] == dt]
-        for sleepi_level in np.linspace(1, 9, 9) :
-            dic['sub_id'].append(sub_id)
-            dic['subtype'].append(sub_id.split('_')[1])
-            dic['daytime'].append(dt)
-            dic['sleepiness'].append(sleepi_level)
-            dic['percentage'].append(
-                len(df_dt.sleepiness.loc[
-                    (df_dt['sleepiness'] == sleepi_level)]
-                    )/len(df_dt.sleepiness))
+        for ms in ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT'] :
+            if ms not in df_dt.mindstate.unique(): continue
+            df_ms = df_dt.loc[df_dt.mindstate==ms]
+            for sleepi_level in np.linspace(1, 9, 9) :
+                dic['sub_id'].append(sub_id)
+                dic['subtype'].append(sub_id.split('_')[1])
+                dic['daytime'].append(dt)
+                dic['mindstate'].append(ms)
+                dic['sleepiness'].append(sleepi_level)
+                dic['percentage'].append(
+                    len(df_ms.sleepiness.loc[
+                        (df_ms['sleepiness'] == sleepi_level)]
+                        )/len(df_ms.sleepiness))
 
 df_sleepi = pd.DataFrame.from_dict(dic)
+df_sleepi.to_csv("/Volumes/DDE_ALC/PhD/SLHIP/02_BehavResults/NT1_CTL/sleepiness_df.csv")
 
-# %% Sleepiness  (full_scale, use df) [MS x ST Diff]
- 
-data = df_sleepi.copy()
-data = data.loc[data.subtype != "HI"]
+# %% Per Sleepi Pointplot [ST Diff]
+
+data = df_sleepi.loc[df_sleepi.subtype != "HI"].copy().drop(
+    columns=["daytime", 'mindstate']
+    ).groupby(["sub_id", 'subtype', 'sleepiness']).mean()
 
 x = 'sleepiness'
 order = np.linspace(1, 9, 9)
@@ -779,7 +737,76 @@ y = 'percentage'
 hue = 'subtype'
 hue_order = ['HS', 'N1']
 
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 6))
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (5, 4))
+
+sns.pointplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    errorbar='se', 
+    palette=subtype_palette, 
+    capsize=0.05, 
+    ax=ax,
+    legend=None,
+    dodge=.3
+    )
+
+sns.stripplot(
+    data = data, 
+    x = x,
+    y = y,
+    hue = hue,
+    order = order,
+    hue_order = hue_order,
+    palette=subtype_palette, 
+    ax=ax,
+    alpha = .1,
+    dodge = True,
+    legend=None
+    )
+
+ax.set_yticks(
+    ticks = np.linspace(0, .5, 6), 
+    labels = np.linspace(0, 50, 6).astype(int), 
+    font = font, 
+    size = 10)
+ax.set_ylim(0, .5)
+ax.set_ylabel("Percentage %", font = bold_font, size = 18)
+ax.set_xticks(
+    ticks = np.linspace(0, 8, 9), 
+    labels = np.linspace(1, 9, 9).astype(int), 
+    size = 14,
+    font = font
+    )
+ax.set_xlabel("Sleepiness", font = bold_font, size = 18)
+ax.tick_params(axis='both', labelsize=14)
+sns.despine()
+
+fig.tight_layout(pad = 1)
+
+plt.savefig(
+    os.path.join(behavpath, 
+                 "NT1_CTL", 
+                 "point_strip_sleepiness_ms_subtype.png"), 
+    dpi=200 
+    )
+
+# %% Per Sleepiness [MS Diff]
+ 
+data = df_sleepi.copy().drop(columns=["subtype", "daytime"]).groupby(
+    ["sub_id", "mindstate", "sleepiness"], as_index=False
+    ).mean()
+
+x = 'sleepiness'
+order = np.linspace(1, 9, 9)
+y = 'percentage'
+hue = 'mindstate'
+hue_order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
+
+fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (7, 4))
 
 sns.barplot(
     data = data, 
@@ -790,40 +817,166 @@ sns.barplot(
     hue_order = hue_order,
     errorbar='se', 
     orient=None, 
-    palette=subtype_palette, 
+    palette=ms_palette, 
     fill=False,
     hue_norm=None, 
     width=0.8, 
     dodge='auto', 
-    gap=0, 
+    gap=0.1, 
     capsize=0.05, 
-    ax=ax
+    ax=ax,
+    legend=None
     )
 
 ax.set_yticks(
-    ticks = np.linspace(0, .4, 5), 
-    labels = np.linspace(0, 40, 5).astype(int), 
+    ticks = np.linspace(0, .6, 7), 
+    labels = np.linspace(0, 60, 7).astype(int), 
     font = font, 
     size = 10)
-ax.set_ylim(0, .4)
-ax.set_ylabel("Percentage %", font = bold_font, size = 18)
+ax.set_ylim(0, .6)
+ax.set_ylabel("Percentage %", font = bold_font, size = 14)
 ax.set_xticks(
     ticks = np.linspace(0, 8, 9), 
     labels = np.linspace(1, 9, 9).astype(int), 
     size = 14,
     font = font
     )
-ax.set_xlabel("Sleepiness", font = bold_font, size = 18)
-ax.tick_params(axis='both', labelsize=16)
+ax.set_xlabel("Sleepiness", font = bold_font, size = 14)
+ax.tick_params(axis='both', labelsize=12)
 sns.despine()
+
+fig.tight_layout()
+plt.savefig(
+    os.path.join(behavpath, 
+                 "NT1_CTL", 
+                 "persleepiness_ms_only.png"), 
+    dpi=200 
+    )
+
+# %% Per Sleepiness [MS x ST Diff]
+ 
+data = df_sleepi.copy().drop(columns="daytime").groupby(
+    ["sub_id", "subtype", "mindstate", "sleepiness"], as_index=False
+    ).mean()
+data = data.loc[data.subtype != "HI"]
+
+x = 'sleepiness'
+order = np.linspace(1, 9, 9)
+y = 'percentage'
+hue = 'mindstate'
+hue_order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
+
+
+fig, axes = plt.subplots(nrows = 2, ncols = 1, figsize = (12, 10), sharex = True, sharey = True)
+
+for i, subtype in enumerate(["HS", "N1"]) :
+    ax = axes[i]
+    sns.barplot(
+        data = data.loc[data.subtype==subtype], 
+        x = x,
+        y = y,
+        hue = hue,
+        order = order,
+        hue_order = hue_order,
+        errorbar='se', 
+        orient=None, 
+        palette=ms_palette, 
+        fill=False,
+        hue_norm=None, 
+        width=0.8, 
+        dodge='auto', 
+        gap=0, 
+        capsize=0.05, 
+        ax=ax,
+        legend=None
+        )
+    
+    ax.set_yticks(
+        ticks = np.linspace(0, .7, 8), 
+        labels = np.linspace(0, 70, 8).astype(int), 
+        font = font, 
+        size = 10)
+    ax.set_ylim(0, .70)
+    ax.set_ylabel("Percentage %", font = bold_font, size = 18)
+    ax.set_xticks(
+        ticks = np.linspace(0, 8, 9), 
+        labels = np.linspace(1, 9, 9).astype(int), 
+        size = 14,
+        font = font
+        )
+    ax.set_xlabel("Sleepiness", font = bold_font, size = 14)
+    ax.tick_params(axis='both', labelsize=14)
+    ax.set_title(subtype, font = bold_font, fontsize = 16)
+    sns.despine()
 
 fig.tight_layout(pad = 2)
 plt.savefig(
     os.path.join(behavpath, 
                  "NT1_CTL", 
-                 "point_strip_sleepiness_ms_subtype.png"), 
-    dpi=200 
+                 "per_sleepi_MS_perGroup.png"), 
+    dpi=300 
     )
+
+# %% Sleepiness [ST x MS Diff]
+ 
+data = df_sleepi.copy().drop(columns="daytime").groupby(
+    ["sub_id", "subtype", "mindstate", "sleepiness"], as_index=False
+    ).mean()
+data = data.loc[data.subtype != "HI"]
+
+x = 'sleepiness'
+order = np.linspace(1, 9, 9)
+y = 'percentage'
+hue = 'subtype'
+hue_order = ['HS', 'N1']
+
+for i, ms in enumerate(['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']) :
+    fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (6, 3))
+    sns.barplot(
+        data = data.loc[data.mindstate==ms], 
+        x = x,
+        y = y,
+        hue = hue,
+        order = order,
+        hue_order = hue_order,
+        errorbar='se', 
+        orient=None, 
+        palette=subtype_palette, 
+        fill=False,
+        hue_norm=None, 
+        width=0.8, 
+        dodge='auto', 
+        gap=0, 
+        capsize=0.05, 
+        ax=ax,
+        legend=None
+        )
+    
+    ax.set_yticks(
+        ticks = np.linspace(0, .7, 8), 
+        labels = np.linspace(0, 70, 8).astype(int), 
+        font = font, 
+        size = 10)
+    ax.set_ylim(0, .70)
+    ax.set_ylabel("Percentage %", font = bold_font, size = 18)
+    ax.set_xticks(
+        ticks = np.linspace(0, 8, 9), 
+        labels = np.linspace(1, 9, 9).astype(int), 
+        size = 14,
+        font = font
+        )
+    ax.set_xlabel("Sleepiness", font = bold_font, size = 14)
+    ax.tick_params(axis='both', labelsize=14)
+    ax.set_title(ms, font = bold_font, fontsize = 16)
+    sns.despine()
+
+    fig.tight_layout(pad = 2)
+    plt.savefig(
+        os.path.join(behavpath, 
+                     "NT1_CTL", 
+                     f"per_sleepi_Group_perMS_{ms}.png"), 
+        dpi=300 
+        )
 
 # %% LME Sleepiness
 
@@ -1029,18 +1182,32 @@ for feat in feats :
         width=0.8, 
         dodge='auto', 
         gap=0, 
-        ax=ax
+        ax=ax,
+        showfliers=False
+        )
+    sns.stripplot(
+        data = data, 
+        x = x,
+        y = y,
+        hue = hue,
+        order = order,
+        hue_order = hue_order,
+        palette=subtype_palette, 
+        ax=ax,
+        alpha = .1,
+        dodge = True,
+        legend=None
         )
     sns.despine()
     fig.tight_layout()
     
     ax.set_xticks(
         np.linspace(0, len(order)-1, len(order)),
-        ['ON', 'MW', 'MB', 'HALLU', 'FGT'],
+        ['ON', 'MW', 'MB', 'HA', 'FG'],
         font = font, 
         fontsize = 12
         )
-    ax.set_xlabel("Mindstates", font=bold_font, fontsize=14)
+    ax.set_xlabel("Mindstates", font=bold_font, fontsize=16)
     ax.get_legend().remove()
     ax.set_yticks(
         ticks = ticks[feat][0],
@@ -1049,15 +1216,13 @@ for feat in feats :
         fontsize = 12
         )
     ax.set_ylim(minmax[feat][0], minmax[feat][1])
-    ax.set_ylabel(labels[feat], font = bold_font, size = 14)
+    ax.set_ylabel(labels[feat], font = bold_font, size = 16)
     
     plt.savefig(os.path.join(
         behavpath, "NT1_CTL", f"{feat}_boxplot_groupdiff.png"
         ), dpi=300)
     
 # %% Separate plots [MS diff]
-
-ms_palette = ["#FFC000", "#00B050", "#0070C0", "#7030A0", "#7F7F7F"]
 
 feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
 this_df = sub_df[
@@ -1080,7 +1245,7 @@ labels = {
     "std_rtgo" : "Standard Deviation RT"
     }
 ticks = {
-    "sleepiness" : [np.linspace(0,8,9), np.linspace(1,9,9).astype(int)],
+    "sleepiness" : [np.linspace(1,9,9), np.linspace(1,9,9).astype(int)],
     "miss" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
     "false_alarms" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
     "rt_go" : [np.linspace(.2,.8, 7), np.round(np.linspace(.2,.8,7),1)],
@@ -1112,7 +1277,7 @@ for feat in feats :
     sns.despine()
     
     ax.set_xticks(
-        np.linspace(-0.33, 0.33, len(order)),
+        np.linspace(-0.33, 0.33, len(hue_order)),
         ['ON', 'MW', 'MB', 'HA', 'FGT'],
         font = font, 
         fontsize = 12
@@ -1135,24 +1300,82 @@ for feat in feats :
         behavpath, "NT1_CTL", f"{feat}_boxplot_msonly.png"
         ), dpi=300)
     
-# %% Stats
 
-comparison_oi = ["ON", "MW_I"]
+# %% Separate plots [ST diff]
+feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
+this_df = sub_df.copy().drop(
+    columns=['daytime', 'mindstate']
+    ).groupby(['sub_id', 'subtype'], as_index = False).mean()
 
-feat_oi = "std_rtgo"
-ms_oi = comparison_oi[0]
+minmax = {
+    "sleepiness" : [1, 9],
+    "miss" : [0, 100],
+    "false_alarms" : [0, 100],
+    "rt_go" : [.3, .6],
+    "std_rtgo" : [0, .2]
+    }
+labels = {
+    "sleepiness" : "Sleepiness",
+    "miss" : "Misses (%)",
+    "false_alarms" : "False Alarms (%)",
+    "rt_go" : "Reaction Time (ms)",
+    "std_rtgo" : "Standard Deviation RT"
+    }
+ticks = {
+    "sleepiness" : [np.linspace(1,9,9), np.linspace(1,9,9).astype(int)],
+    "miss" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
+    "false_alarms" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
+    "rt_go" : [np.linspace(.3,.6, 4), np.round(np.linspace(.3,.6, 4),1)],
+    "std_rtgo" : [np.linspace(0,.2, 5), np.round(np.linspace(0,.2, 5),1)]
+    }
 
-df_stats = this_df.loc[this_df.mindstate.isin(comparison_oi)]
+data = this_df
+hue = 'subtype'
+hue_order = ['HS', 'N1']
 
-model_formula = f'{feat_oi} ~ C(mindstate)'
-model = smf.mixedlm(
-    model_formula, 
-    df_stats, 
-    groups=df_stats['sub_id'], 
-    missing = 'drop'
-    )
-model_result = model.fit()
-print(model_result.summary())
+for feat in feats :
+    fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (2, 3))
+
+    y = feat
+    sns.boxplot(
+        data = data, 
+        # x = x,
+        y = y,
+        hue = hue,
+        # order = order,
+        hue_order = hue_order,
+        palette=subtype_palette, 
+        fill=False,
+        width=0.8, 
+        dodge='auto', 
+        gap=.2, 
+        ax=ax
+        )
+    sns.despine()
+    
+    ax.set_xticks(
+        np.linspace(-0.2, 0.2, len(hue_order)),
+        hue_order,
+        font = font, 
+        fontsize = 12
+        )
+    ax.set_xlabel("Group", font=bold_font, fontsize=14)
+    ax.set_yticks(
+        ticks = ticks[feat][0],
+        labels = ticks[feat][1],
+        font = font,
+        fontsize = 12
+        )
+    ax.set_ylim(minmax[feat][0], minmax[feat][1])
+    ax.set_ylabel(labels[feat], font = bold_font, size = 14)
+    
+    ax.get_legend().remove()
+    
+    fig.tight_layout()
+    
+    plt.savefig(os.path.join(
+        behavpath, "NT1_CTL", f"{feat}_boxplot_ST_only.png"
+        ), dpi=300)
 
 # %% Compute TransMat MS
 
@@ -1167,12 +1390,13 @@ dic_itos = {
     1 : "ON", 
     2 : "MW", 
     3 : "MB", 
-    4 : "HALLU", 
-    5 : "FORGOT"
+    4 : "HA", 
+    5 : "FG"
     }
 
 coi = ["sub_id", "subtype", "daytime", "mindstate", 
-       "proba_ON", "proba_MW", "proba_MB", "proba_HALLU", "proba_FORGOT"]
+       "proba_ON", "proba_MW", "proba_MB", "proba_HA", "proba_FG"]
+
 thisdic = {c : [] for c in coi}
 
 for sub_id in sub_df.sub_id.unique() :
@@ -1204,15 +1428,15 @@ for sub_id in sub_df.sub_id.unique() :
             thisdic["proba_ON"].append(j[0])
             thisdic["proba_MW"].append(j[1])
             thisdic["proba_MB"].append(j[2])
-            thisdic["proba_HALLU"].append(j[3])
-            thisdic["proba_FORGOT"].append(j[4])
+            thisdic["proba_HA"].append(j[3])
+            thisdic["proba_FG"].append(j[4])
             
 df_transi = pd.DataFrame.from_dict(thisdic)
 av_transi = df_transi[[
     'subtype', 'mindstate', 'proba_ON', 
-    "proba_MW", "proba_MB",'proba_HALLU', 'proba_FORGOT']].groupby(
+    "proba_MW", "proba_MB",'proba_HA', 'proba_FG']].groupby(
         by=['subtype', 'mindstate'], as_index=False).mean()
-order = ["ON", "MW", "MB", "HALLU", "FORGOT"]
+order = ["ON", "MW", "MB", "HA", "FG"]
 av_transi['mindstate'] = pd.Categorical(
     av_transi['mindstate'],
     categories=order,
@@ -1227,602 +1451,134 @@ transi_hs = av_transi.loc[av_transi.subtype=="HS"]
 transi_n1.drop(columns="subtype", inplace=True)
 transi_hs.drop(columns="subtype", inplace=True)
 
-# %% Plot TransMat MS
+# %% 
 
-grid_kws = {"height_ratios": (.9, .05), "hspace": .1}
+from tqdm import tqdm
 
-f, (ax, cbar_ax) = plt.subplots(
-    2, 
-    gridspec_kw=grid_kws,
-    figsize=(6, 6)
-    )
-sns.heatmap(
-    transi_n1, 
-    ax=ax, 
-    square=False, 
-    vmin=0, 
-    vmax=1, 
-    cbar=True,
-    cbar_ax=cbar_ax, 
-    cmap='Purples', 
-    annot=True, 
-    annot_kws={"size": 14},
-    fmt='.2f',
-    cbar_kws={
-        "orientation": "horizontal", 
-        "fraction": 0.1,
-        "label": "Transition probability"}
-    )
-ax.set_xlabel("To Mental State", font=bold_font, fontsize=12)
-ax.xaxis.tick_top()
-ax.set_ylabel("From Mental State", font=bold_font, fontsize=12)
-ax.xaxis.set_label_position('top')
+# Assuming transition_matrix(actual_ms) returns (counts, probs) where probs is a pandas DataFrame
+# mapping states 1..5 to 1..5 probabilities
 
-
-ax.set_xticks(
-    np.linspace(0.5,4.5,5),
-    ['ON', 'MW', 'MB', 'HALLU', 'FORGOT'],
-    font = font, 
-    fontsize = 12
-    )
-ax.set_yticks(
-    np.linspace(0.5,4.5,5),
-    ['ON', 'MW', 'MB', 'HALLU', 'FORGOT'],
-    font = font, 
-    fontsize = 12
-    )
-ax.set_title("Narcolepsy Type 1", font = bold_font, fontsize = 14)
-f.tight_layout()
-
-plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_mwmb_ms_nt1.png"
-    ), dpi=300)
-
-f, (ax, cbar_ax) = plt.subplots(
-    2, 
-    gridspec_kw=grid_kws,
-    figsize=(6, 6)
-    )
-sns.heatmap(
-    transi_hs, 
-    ax=ax, 
-    square=False, 
-    vmin=0, 
-    vmax=1, 
-    cbar=True,
-    cbar_ax=cbar_ax, 
-    cmap='Purples', 
-    annot=True, 
-    annot_kws={"size": 14},
-    fmt='.2f',
-    cbar_kws={
-        "orientation": "horizontal", 
-        "fraction": 0.1,
-        "label": "Transition probability"}
-    )
-ax.set_xlabel("To Mental State", font=bold_font, fontsize=12)
-ax.xaxis.tick_top()
-ax.set_ylabel("From Mental State", font=bold_font, fontsize=12)
-ax.xaxis.set_label_position('top')
-
-ax.set_xticks(
-    np.linspace(0.5,4.5,5),
-    ['ON', 'MW', 'MB', 'HALLU', 'FORGOT'],
-    font = font, 
-    fontsize = 12
-    )
-ax.set_yticks(
-    np.linspace(0.5,4.5,5),
-    ['ON', 'MW', 'MB', 'HALLU', 'FORGOT'],
-    font = font, 
-    fontsize = 12
-    )
-ax.set_title("Controls", font = bold_font, fontsize = 14)
-f.tight_layout()
-plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_mwmb_ctl.png"
-    ), dpi=300)
-
-
-# %% Explore Dynamics (DAY)
-
-this_df = sub_df.copy()
-
-foi = 'false_alarms'
-
-fig, ax = plt.subplots(nrows = 1, ncols = 1)
-sns.pointplot(
-    data = sub_df,
-    x = 'total_block',
-    y = foi,
-    hue = 'subtype',
-    hue_order = ['HS', 'N1', 'HI'],
-    errorbar = "se",
-    alpha = .8,
-    palette = subtype_palette,
-    linewidth = 3.5
-    )
-ax.set_ylabel(foi, font = bold_font, fontsize = 16)
-ax.set_xlabel("Blocks throughout the day", font = bold_font, fontsize = 16)
-ax.set_xticks(
-    np.linspace(0,7,8), 
-    ["1-AM", "2-AM", "3-AM", "4-AM",
-     "1-PM", "2-PM", "3-PM", "4-PM"], 
-    font = font, 
-    fontsize = 12
-    )
-sns.despine()
-fig.tight_layout()
-
-# %% Explore Dynamics (SESSION)
-
-this_df = sub_df.copy()
-doubled_palette = dict(
-    HS=["#8d99ae", "#d2d7df"],
-    N1=["#d00000", "#ffbcbc"],
-    HI=["#ffb703", "#ffe4a0"],
-    )
-
-foi = 'sleepiness'
-
-fig, axs = plt.subplots(nrows = 1, ncols = 3, figsize = (12,5), sharex=True, sharey=True)
-for i_st, dis_subtype in enumerate(subtypes) :
-    ax = axs[i_st]
-    ax.set_title(dis_subtype, font=bold_font, fontsize=14, color=subtype_palette[i_st])
-    plot_df = sub_df.loc[sub_df.subtype == dis_subtype] 
-   
-    sns.pointplot(
-        data = plot_df,
-        x = 'nblock',
-        y = foi,
-        hue = 'daytime',
-        hue_order = ['AM', 'PM'],
-        errorbar = "se",
-        alpha = .8,
-        palette = doubled_palette[dis_subtype],
-        linewidth = 3,
-        ax = ax,
-        capsize = .02
-        )
-    ax.set_ylabel(foi, font = bold_font, fontsize = 16)
-    ax.set_xlabel("Blocks throughout the day", font = bold_font, fontsize = 16)
-    ax.set_xticks(
-        np.linspace(0,3,4), 
-        ["1", "2", "3", "4"], 
-        font = font, 
-        fontsize = 12
-        )
-    sns.despine()
-    fig.tight_layout()
-
-figname = os.path.join(
-    behavpath, 
-    f"betweenblocks_ampm_{foi}.png"
-    )
-plt.savefig(figname, dpi=100)
-
-# %% Dynamics Mindstates
-
-coi = ['sub_id', 'subtype', 'sleepiness', 'mindstate', 
-       'percentage', 'daytime', 'nblock']
-
-dic = {c : [] for c in coi}
-
-for sub_id in sub_df.sub_id.unique() :    
-    this_df = sub_df.loc[sub_df['sub_id'] == sub_id]
-    for dt in this_df.daytime.unique() :
-        df_dt = this_df.loc[sub_df['daytime'] == dt]
-        for bloc in df_dt.nblock.unique() :
-            df_bloc = df_dt.loc[df_dt['nblock'] == bloc]
-            for mindstate in ['ON', 'MW_I', 'MW_E', 'MW_H', 'MB', 'FORGOT'] :
-                dic['sub_id'].append(sub_id)
-                dic['subtype'].append(sub_id.split('_')[1])
-                dic['nblock'].append(bloc)
-                dic['daytime'].append(dt)
-                dic['mindstate'].append(mindstate)
-                dic['percentage'].append(
-                    len(df_bloc.mindstate.loc[
-                        (df_bloc['mindstate'] == mindstate)]
-                        )/len(df_bloc.mindstate))
-                dic['sleepiness'].append(
-                    df_bloc.sleepiness.loc[
-                        (df_bloc['mindstate'] == mindstate)].mean()
-                        )
-
-df_mindstate_bloc = pd.DataFrame.from_dict(dic)
-
-this_df = df_mindstate_bloc.loc[
-    df_mindstate_bloc.mindstate.isin(['ON', 'MW_I','MW_H', 'MB'])
-    ]
-
-doubled_ms_palette = dict(
-    AM=["#46964D", "#E78B42", "#70A1C9", "#D50000"],
-    PM=["#9ED1A2", "#F1BD93", "#C4D9E9", "#FF9999"]
-    )
-
-ms_palette = ["#46964D", "#E78B42", "#70A1C9", "#D50000"]
-
-foi = 'percentage'
-
-fig, axs = plt.subplots(nrows = 1, ncols = 3, figsize = (12,5), sharex=True, sharey=True)
-for i_st, dis_subtype in enumerate(subtypes) :
-    ax = axs[i_st]
-    ax.set_title(dis_subtype, font=bold_font, fontsize=14, color=subtype_palette[i_st])
-    for session in ['AM', 'PM'] :
-    
-        plot_df = this_df.loc[
-            (this_df.subtype == dis_subtype)
-            & (this_df.daytime == session)
-            ] 
-       
-        sns.pointplot(
-            data = plot_df,
-            x = 'nblock',
-            y = foi,
-            hue = 'mindstate',
-            hue_order = ['ON', 'MW_I','MB', 'MW_H'],
-            errorbar = "se",
-            alpha = .8,
-            palette = doubled_ms_palette[session],
-            linewidth = 3,
-            ax = ax,
-            capsize = .02,
-            legend = None
-            )
-        ax.set_ylabel(foi, font = bold_font, fontsize = 16)
-        ax.set_xlabel("Blocks throughout the day", font = bold_font, fontsize = 16)
-        ax.set_xticks(
-            np.linspace(0,3,4), 
-            ["1", "2", "3", "4"], 
-            font = font, 
-            fontsize = 12
-            )
-        sns.despine()
-        
-fig.tight_layout()
-
-figname = os.path.join(
-    behavpath, 
-    "betweenblocks_ampm_mindstate.png"
-    )
-plt.savefig(figname, dpi=100)
-
-# %% ON, OFF, HALLU, FORGOT
-
-onoff_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS') & (df.mindstate != 'MW_E')]
-onoff_df['mindstate'] = onoff_df['mindstate'].replace({'MW_I': 'OFF', 'MB': 'OFF'}) 
-
-onoff_df.to_csv(os.path.join(
-    behavpath, "NT1_CTL", "onoff_df.csv"
-    ))
-
-# %% Ready DF Per MS
-
-coi = ['sub_id', 'subtype', 'daytime', 'mindstate', 'percentage']
-dic = {c : [] for c in coi}
-
-for sub_id in onoff_df.sub_id.unique() :    
-    this_df = onoff_df.loc[onoff_df['sub_id'] == sub_id]
-    for dt in this_df.daytime.unique() :
-        df_dt = this_df.loc[this_df['daytime'] == dt]
-        for mindstate in ['ON', 'OFF', 'MW_H', 'FORGOT'] :
-            dic['sub_id'].append(sub_id)
-            dic['subtype'].append(sub_id.split('_')[1])
-            dic['daytime'].append(dt)
-            dic['mindstate'].append(mindstate)
-            dic['percentage'].append(
-                len(df_dt.mindstate.loc[
-                    (df_dt['mindstate'] == mindstate)]
-                    )/len(df_dt.mindstate))
-
-df_mindstate = pd.DataFrame.from_dict(dic)
-df_mindstate.to_csv(os.path.join(
-    behavpath, "NT1_CTL", "per_ms_onoff.csv"
-    ))
-
-# %% Figure Per MS
-
-data = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
-    ['sub_id', 'subtype', 'mindstate'], as_index = False
-    ).mean()
-y = 'percentage'
-x = "mindstate"
-order = ['ON', 'MW_H', 'FORGOT', 'OFF']
-hue = "subtype"
-hue_order = ['HS', 'N1']    
-         
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (4, 4))
-     
-sns.barplot(
-    data = data, 
-    x = x,
-    y = y,
-    hue = hue,
-    order = order,
-    hue_order = hue_order,
-    errorbar='se', 
-    orient=None, 
-    palette=subtype_palette, 
-    fill=False,
-    hue_norm=None, 
-    width=0.8, 
-    dodge='auto', 
-    gap=0.1, 
-    capsize=0.05, 
-    ax=ax
-    )
-
-ax.get_legend().remove()
-
-ax.set_ylabel('Pourcentage %', size = 16, font = bold_font)
-ax.set_xlabel('Mindstate', size = 16, font = bold_font)
-ax.set_ylim(0, 1)
-ax.set_xticks(
-    ticks = np.arange(0, 4, 1), 
-    labels = ["ON", "HALLU", "FGT", "OFF"],
-    font = font, 
-    fontsize = 12)
-ax.set_yticks(
-    ticks = np.arange(0, 1.2, .2), 
-    labels = np.arange(0, 120, 20), 
-    font = font, 
-    fontsize = 12)
-sns.despine()
-fig.tight_layout()
-
-plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "per_ms_group_onoff.png"
-    ), dpi=200)
-
-# %% Stats Per MS
-
-temp_df = data.copy()
-
-model_formula = 'percentage ~ C(mindstate, Treatment("ON")) * C(subtype, Treatment("HS"))'
-model = smf.mixedlm(
-    model_formula, 
-    df_mindstate, 
-    groups=df_mindstate['sub_id'], 
-    missing = 'omit'
-    )
-model_result = model.fit(method="powell", maxiter=1000, tol=1e-6)
-print(model_result.summary())
-
-# %% Ready figure % Sleepi
-
-coi = ['sub_id', 'subtype', 'daytime', 'sleepiness', 'percentage']
-dic = {c : [] for c in coi}
-
-for sub_id in df.sub_id.unique() :    
-    this_df = onoff_df.loc[onoff_df['sub_id'] == sub_id]
-    for dt in this_df.daytime.unique() :
-        df_dt = this_df.loc[this_df['daytime'] == dt]
-        for sleepi_level in np.linspace(1, 9, 9) :
-            dic['sub_id'].append(sub_id)
-            dic['subtype'].append(sub_id.split('_')[1])
-            dic['daytime'].append(dt)
-            dic['sleepiness'].append(sleepi_level)
-            dic['percentage'].append(
-                len(df_dt.sleepiness.loc[
-                    (df_dt['sleepiness'] == sleepi_level)]
-                    )/len(df_dt.sleepiness))
-
-df_sleepi = pd.DataFrame.from_dict(dic)
-df_sleepi.to_csv(os.path.join(
-    behavpath, "NT1_CTL", "sleepiness_df.csv"
-    ))
-
-# %% Sleepiness  (full_scale, use df) [MS x ST Diff]
- 
-# See stats on R scripts !
-
-data = df_sleepi.copy()
-
-x = 'sleepiness'
-order = np.linspace(1, 9, 9)
-y = 'percentage'
-hue = 'subtype'
-hue_order = ['HS', 'N1']
-
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (8, 6))
-
-sns.barplot(
-    data = data, 
-    x = x,
-    y = y,
-    hue = hue,
-    order = order,
-    hue_order = hue_order,
-    errorbar='se', 
-    orient=None, 
-    palette=subtype_palette, 
-    fill=False,
-    hue_norm=None, 
-    width=0.8, 
-    dodge='auto', 
-    gap=0, 
-    capsize=0.05, 
-    ax=ax
-    )
-ax.get_legend().remove()
-ax.set_yticks(
-    ticks = np.linspace(0, .3, 4), 
-    labels = np.linspace(0, 30, 4).astype(int), 
-    font = font, 
-    size = 10)
-ax.set_ylim(0, .3)
-ax.set_ylabel("Percentage %", font = bold_font, size = 18)
-ax.set_xticks(
-    ticks = np.linspace(0, 8, 9), 
-    labels = np.linspace(1, 9, 9).astype(int), 
-    size = 14,
-    font = font
-    )
-ax.set_xlabel("Sleepiness", font = bold_font, size = 18)
-ax.tick_params(axis='both', labelsize=16)
-sns.despine()
-
-fig.tight_layout(pad = 2)
-plt.savefig(
-    os.path.join(behavpath, 
-                 "NT1_CTL", 
-                 "point_strip_sleepiness_onoff_ms_subtype.png"), 
-    dpi=200 
-    )
-
-# %% Caracterize Hallu 
-
-ms_palette = ["#FFC000", "#7030A0", "#7F7F7F", "#0070C0"]
-
-feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
-
-minmax = {
-    "sleepiness" : [1, 9],
-    "miss" : [0, 100],
-    "false_alarms" : [0, 100],
-    "rt_go" : [.2, .8],
-    "std_rtgo" : [0, .3]
-    }
-labels = {
-    "sleepiness" : "Sleepiness",
-    "miss" : "Misses (%)",
-    "false_alarms" : "False Alarms (%)",
-    "rt_go" : "Reaction Time (ms)",
-    "std_rtgo" : "Standard Deviation RT"
-    }
-ticks = {
-    "sleepiness" : [np.linspace(1,9,9), np.linspace(1,9,9).astype(int)],
-    "miss" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
-    "false_alarms" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
-    "rt_go" : [np.linspace(.2,.8, 7), np.round(np.linspace(.2,.8,7),1)],
-    "std_rtgo" : [np.linspace(0,.3, 4), np.round(np.linspace(0,.3,4),1)]
-    }
-
-data = onoff_df.copy()[[
-    'sub_id', 'subtype', 'rt_go', 'rt_nogo', 'std_rtgo',
-    'std_rtnogo', 'hits', 'miss', 'correct_rejections', 'false_alarms',
-    'mindstate', 'sleepiness', 
-    ]].groupby(
-        by=['sub_id', 'subtype', 'mindstate'], 
-        as_index=False
-        ).mean()
-
-hue = 'mindstate'
-hue_order = ['ON', 'MW_H', 'FORGOT', 'OFF']
-
-for feat in feats :
-    fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (3, 3))
-
-    y = feat
-    sns.boxplot(
-        data = data, 
-        # x = x,
-        y = y,
-        hue = hue,
-        # order = order,
-        hue_order = hue_order,
-        palette=ms_palette, 
-        fill=False,
-        width=0.8, 
-        dodge='auto', 
-        gap=.2, 
-        ax=ax
-        )
-    sns.despine()
-    
-    ax.set_xticks(
-        np.linspace(-0.33, 0.33, len(hue_order)),
-        ['ON', 'HA', 'FGT', 'OFF'],
-        font = font, 
-        fontsize = 12
-        )
-    ax.set_xlabel("Mindstates", font=bold_font, fontsize=14)
-    ax.set_yticks(
-        ticks = ticks[feat][0],
-        labels = ticks[feat][1],
-        font = font,
-        fontsize = 12
-        )
-    ax.set_ylim(minmax[feat][0], minmax[feat][1])
-    ax.set_ylabel(labels[feat], font = bold_font, size = 14)
-    
-    ax.get_legend().remove()
-    
-    fig.tight_layout()
-    
-    plt.savefig(os.path.join(
-        behavpath, "NT1_CTL", f"{feat}_boxplot_msonly_onoff.png"
-        ), dpi=300)
-
-# %% Compute TransMat MS
-
+# Mapping dictionaries
 dic_stoi = {
-    "ON" : 1,
-    "OFF" : 2,
-    "MW_H" : 3,
-    "FORGOT" : 4
+    "ON": 1,
+    "MW_I": 2,
+    "MB": 3,
+    "MW_H": 4,
+    "FORGOT": 5
     }
-dic_itos = {
-    1 : "ON", 
-    2 : "OFF", 
-    3 : "HALLU", 
-    4 : "FORGOT"
+dic_stoi_2 = {
+    "ON": 1,
+    "MW": 2,
+    "MB": 3,
+    "HA": 4,
+    "FG": 5
     }
+dic_itos = {1: "ON", 2: "MW", 3: "MB", 4: "HA", 5: "FG"}
 
-coi = ["sub_id", "subtype", "daytime", "mindstate", 
-       "proba_ON", "proba_OFF", "proba_HALLU", "proba_FORGOT"]
-thisdic = {c : [] for c in coi}
+# Parameters
+n_perm = 100  # number of permutations
+alpha = 0.05   # for 95% CI -> use upper 97.5 percentile
 
-for sub_id in onoff_df.sub_id.unique() :
-    subid_df = onoff_df.loc[onoff_df.sub_id==sub_id]
-    subtype = subid_df.subtype.unique()[0]
-    
-    for daytime in ["AM", "PM"]:
-        subid_df_am = subid_df.loc[subid_df.daytime == daytime]
-        
-        if subid_df_am.empty : continue
-        actual_ms = np.asarray(
-            [dic_stoi[ms] for ms in subid_df_am.mindstate.values]
-            )
-        unique_ms = np.sort(np.unique(actual_ms))
+# Collect all subject/daytime matrices in advance
+subjects = sub_df.sub_id.unique()
+days = ["AM", "PM"]
+groups = sub_df.subtype.unique()
+
+# Compute actual individual transition probabilities
+thisdic = {c: [] for c in ["sub_id", "subtype", "daytime", "mindstate",
+                             "proba_ON", "proba_MW", "proba_MB", "proba_HALLU", "proba_FORGOT"]}
+
+# Store each subject-daytime matrix for pruning later
+matrices_by_sub = {}
+for sub_id in subjects:
+    subdf = sub_df[sub_df.sub_id == sub_id]
+    subtype = subdf.subtype.iloc[0]
+    matrices_by_sub[sub_id] = {}
+    for daytime in days:
+        tmp = subdf[subdf.daytime == daytime]
+        if tmp.empty:
+            continue
+        actual_ms = np.array([dic_stoi[s] for s in tmp.mindstate])
         _, probs = transition_matrix(actual_ms)
-        np_probs = probs.to_numpy()
-        
-        temp_transmat = np.nan * np.empty((4, 4))
-        
-        for i in probs.index.values :
-            for k in probs.columns.values :
-                temp_transmat[i-1, k-1] = probs.loc[i][k]
-                
-        for i, j in enumerate(temp_transmat) :
-            thisdic["sub_id"].append(sub_id)
-            thisdic["subtype"].append(subtype)
-            thisdic["daytime"].append(daytime)
-            thisdic["mindstate"].append(dic_itos[i+1])
-            thisdic["proba_ON"].append(j[0])
-            thisdic["proba_OFF"].append(j[1])
-            thisdic["proba_HALLU"].append(j[2])
-            thisdic["proba_FORGOT"].append(j[3])
-            
+        # convert to numpy[5,5]
+        mat = np.full((5,5), np.nan)
+        for i in probs.index:
+            for j in probs.columns:
+                mat[i-1, j-1] = probs.loc[i, j]
+        matrices_by_sub[sub_id][daytime] = (subtype, mat)
+        # flatten into dataframe
+        for i in range(5):
+            thisdic['sub_id'].append(sub_id)
+            thisdic['subtype'].append(subtype)
+            thisdic['daytime'].append(daytime)
+            thisdic['mindstate'].append(dic_itos[i+1])
+            thisdic['proba_ON'].append(mat[i, 0])
+            thisdic['proba_MW'].append(mat[i, 1])
+            thisdic['proba_MB'].append(mat[i, 2])
+            thisdic['proba_HALLU'].append(mat[i, 3])
+            thisdic['proba_FORGOT'].append(mat[i, 4])
+
 df_transi = pd.DataFrame.from_dict(thisdic)
-av_transi = df_transi[[
-    'subtype', 'mindstate', 'proba_ON', 
-    'proba_OFF','proba_HALLU', 'proba_FORGOT']].groupby(
-        by=['subtype', 'mindstate'], as_index=False).mean()
-order = ["ON", "OFF", "HALLU", "FORGOT"]
-av_transi['mindstate'] = pd.Categorical(
-    av_transi['mindstate'],
-    categories=order,
-    ordered=True
-    )
-av_transi = av_transi.sort_values('mindstate').reset_index(drop=True)
-av_transi.set_index('mindstate', inplace=True)
 
-transi_n1 = av_transi.loc[av_transi.subtype=="N1"]
-transi_hs = av_transi.loc[av_transi.subtype=="HS"]
+# Prepare null distributions per group, per transition
+null_dist = {grp: { (i,j): [] for i in range(5) for j in range(5)} for grp in groups}
 
-transi_n1.drop(columns="subtype", inplace=True)
-transi_hs.drop(columns="subtype", inplace=True)
+# Run permutations
+for _ in tqdm(range(n_perm), desc="Permuting"):
+    # for each subject-daytime, shuffle the sequence
+    perm_mats = {grp: [] for grp in groups}
+    for sub_id, dt_dict in matrices_by_sub.items():
+        for daytime, (subtype, mat) in dt_dict.items():
+            # retrieve original sequence
+            tmp = sub_df[(sub_df.sub_id == sub_id) & (sub_df.daytime == daytime)]
+            ms_seq = np.array([dic_stoi[s] for s in tmp.mindstate])
+            perm_seq = np.random.permutation(ms_seq)
+            _, pmat = transition_matrix(perm_seq)
+            # convert to numpy
+            p = np.full((5,5), np.nan)
+            for i in pmat.index:
+                for j in pmat.columns:
+                    p[i-1, j-1] = pmat.loc[i,j]
+            perm_mats[subtype].append(p)
+    # average across subjects within each group
+    for grp in groups:
+        if len(perm_mats[grp]) == 0:
+            continue
+        avg_null = np.nanmean(np.stack(perm_mats[grp]), axis=0)
+        # collect into null_dist
+        for i in range(5):
+            for j in range(5):
+                null_dist[grp][(i,j)].append(avg_null[i,j])
+
+# Compute thresholds (upper bound of 95% CI)
+thresholds = {grp: np.zeros((5,5)) for grp in groups}
+for grp in groups:
+    for i in range(5):
+        for j in range(5):
+            vals = np.array(null_dist[grp][(i,j)])
+            # 97.5 percentile
+            thresholds[grp][i,j] = np.nanpercentile(vals, 100 * (1 - alpha))
+
+# Prune individual matrices: set values below group-threshold to zero
+df_pruned = df_transi.copy()
+for idx, row in df_pruned.iterrows():
+    grp = row.subtype
+    i = dic_stoi_2[row.mindstate] - 1
+    for k, col in enumerate(['proba_ON', 'proba_MW', 'proba_MB', 'proba_HALLU', 'proba_FORGOT']):
+        if row[col] < thresholds[grp][i, k]:
+            df_pruned.at[idx, col] = 0.0
+
+# Now you can recompute group averages on df_pruned if desired
+av_pruned = df_pruned.groupby(['subtype', 'mindstate'], as_index=False)[
+    ['proba_ON','proba_MW','proba_MB','proba_HALLU','proba_FORGOT']
+    ].mean()
+# reorder and index as before
+order = ["ON","MW","MB","HA","FG"]
+av_pruned['mindstate'] = pd.Categorical(av_pruned['mindstate'], categories=order, ordered=True)
+av_pruned = av_pruned.sort_values('mindstate').set_index('mindstate')
+transi_n1_pruned = av_pruned[av_pruned.subtype == 'N1'].drop(columns='subtype')
+transi_hs_pruned = av_pruned[av_pruned.subtype == 'HS'].drop(columns='subtype')
+
 
 # %% Plot TransMat MS
 
@@ -1834,11 +1590,11 @@ f, (ax, cbar_ax) = plt.subplots(
     figsize=(6, 6)
     )
 sns.heatmap(
-    transi_n1, 
+    transi_n1_pruned, 
     ax=ax, 
     square=False, 
     vmin=0, 
-    vmax=1, 
+    vmax=.6, 
     cbar=True,
     cbar_ax=cbar_ax, 
     cmap='Purples', 
@@ -1857,22 +1613,22 @@ ax.xaxis.set_label_position('top')
 
 
 ax.set_xticks(
-    np.linspace(0.5,3.5,4),
-    ['ON', 'OFF', 'HALLU', 'FORGOT'],
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HA', 'FG'],
     font = font, 
     fontsize = 12
     )
 ax.set_yticks(
-    np.linspace(0.5,3.5,4),
-    ['ON', 'OFF', 'HALLU', 'FORGOT'],
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HALLU', 'FG'],
     font = font, 
     fontsize = 12
     )
-ax.set_title("Narcolepsy Type 1", font = bold_font, fontsize = 14)
+# ax.set_title("Narcolepsy Type 1", font = bold_font, fontsize = 14)
 f.tight_layout()
 
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_ms_nt1.png"
+    behavpath, "NT1_CTL", "transimat_pruned_mwmb_ms_nt1.png"
     ), dpi=300)
 
 f, (ax, cbar_ax) = plt.subplots(
@@ -1881,11 +1637,11 @@ f, (ax, cbar_ax) = plt.subplots(
     figsize=(6, 6)
     )
 sns.heatmap(
-    transi_hs, 
+    transi_hs_pruned, 
     ax=ax, 
     square=False, 
     vmin=0, 
-    vmax=1, 
+    vmax=.6, 
     cbar=True,
     cbar_ax=cbar_ax, 
     cmap='Purples', 
@@ -1897,29 +1653,28 @@ sns.heatmap(
         "fraction": 0.1,
         "label": "Transition probability"}
     )
-ax.set_xlabel("To Mental State", font=bold_font, fontsize=12)
+ax.set_xlabel("To Mental State", font=bold_font, fontsize=16)
 ax.xaxis.tick_top()
-ax.set_ylabel("From Mental State", font=bold_font, fontsize=12)
+ax.set_ylabel("From Mental State", font=bold_font, fontsize=16)
 ax.xaxis.set_label_position('top')
 
 ax.set_xticks(
-    np.linspace(0.5,3.5,4),
-    ['ON', 'OFF', 'HALLU', 'FORGOT'],
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HA', 'FG'],
     font = font, 
-    fontsize = 12
+    fontsize = 14
     )
 ax.set_yticks(
-    np.linspace(0.5,3.5,4),
-    ['ON', 'OFF', 'HALLU', 'FORGOT'],
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HA', 'FG'],
     font = font, 
-    fontsize = 12
+    fontsize = 14
     )
-ax.set_title("Controls", font = bold_font, fontsize = 14)
-f.tight_layout()
+# ax.set_title("Controls", font = bold_font, fontsize = 14)
+f.tight_layout(pad=1)
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_ms_ctl.png"
+    behavpath, "NT1_CTL", "transimat_pruned_mwmb_ctl.png"
     ), dpi=300)
-
 
 # %% Compute TransMat Sleepi
 
@@ -1929,8 +1684,8 @@ coi = ["sub_id", "subtype", "daytime", "sleepiness",
        ]
 thisdic = {c : [] for c in coi}
 
-for sub_id in onoff_df.sub_id.unique() :
-    subid_df = onoff_df.loc[onoff_df.sub_id==sub_id]
+for sub_id in sub_df.sub_id.unique() :
+    subid_df = sub_df.loc[sub_df.sub_id==sub_id]
     subtype = subid_df.subtype.unique()[0]
     
     for daytime in ["AM", "PM"]:
@@ -2068,17 +1823,446 @@ plt.savefig(os.path.join(
     behavpath, "NT1_CTL", "transimat_sleepiness_ctl.png"
     ), dpi=300)
 
-# %% Compute Entropy and dKL on Transition Probabilities
+# %% Entropy Sleepi
 
-# Entropy
-# this_hd_entropy = [-sum(p * np.log2(p) 
-#                         for p in probas if p != 0) 
-#                    for probas in hypnodensity]
+import antropy as ant
 
-# dKL
-# log_ratio = np.log2(hypnodensity[:-1] / hypnodensity[1:])
-# aux_td_dkl = np.sum(hypnodensity[:-1] * log_ratio, axis=1)
+# —— Parameters —— 
+PE_ORDER    = 3      # pattern length for permutation entropy
+PE_DELAY    = 1      # time delay for permutation entropy
+SE_ORDER    = 2      # embedding dimension for sample entropy
+SE_R_FACTOR = 0.4    # r = SE_R_FACTOR * std(sequence)
 
-# long_aux_td_dkl = np.append(aux_td_dkl, np.nan)
+# —— Custom Sample Entropy —— 
+def sample_entropy(x, m, r):
+    """
+    Compute Sample Entropy of sequence x:
+      - m = embedding dimension
+      - r = tolerance (e.g. 0.2 * std(x))
+    Returns: SampEn = -ln( A / B )
+    """
+    x = np.asarray(x)
+    N = len(x)
 
- 
+    def _count_matches(m):
+        templates = np.array([x[i : i + m] for i in range(N - m + 1)])
+        count = 0
+        for i in range(len(templates)):
+            d = np.max(np.abs(templates - templates[i]), axis=1)
+            count += np.sum(d <= r) - 1  # exclude self-match
+        return count
+
+    B = _count_matches(m)
+    A = _count_matches(m + 1)
+    return np.inf if B == 0 else -np.log(A / B)
+
+# —— Loop through subjects & blocks —— 
+results = {
+    "sub_id": [],
+    "subtype": [],
+    "daytime": [],
+    "perm_entropy": [],
+    "sample_entropy": [],
+    "lzc": [],
+}
+
+for sub_id in sub_df.sub_id.unique():
+    subid_df = sub_df[sub_df.sub_id == sub_id]
+    subtype  = subid_df.subtype.iloc[0]
+
+    for daytime in ["AM", "PM"]:
+        block = subid_df[subid_df.daytime == daytime]
+        if block.empty:
+            continue
+
+        seq = block.sleepiness.values.astype(float)
+
+        # — Permutation Entropy —
+        pe = ant.perm_entropy(
+            seq,
+            order=PE_ORDER,
+            delay=PE_DELAY,
+            normalize=True
+        )
+
+        # — Sample Entropy —
+        r  = SE_R_FACTOR * np.std(seq, ddof=0)
+        se = sample_entropy(seq, SE_ORDER, r)
+
+        # — Lempel–Ziv Complexity —
+        # normalize=True scales to [0,1] relative to maximal complexity
+        lzc = ant.lziv_complexity(seq, normalize=True)
+
+        # — store —
+        results["sub_id"].append(sub_id)
+        results["subtype"].append(subtype)
+        results["daytime"].append(daytime)
+        results["perm_entropy"].append(pe)
+        results["sample_entropy"].append(se)
+        results["lzc"].append(lzc)
+
+# —— Build & inspect DataFrame —— 
+df_metrics = pd.DataFrame(results)
+df_metrics.to_csv(os.path.join(behavpath, "NT1_CTL", "entropy_sleepi.csv"))
+
+# %% LZC sleepi
+
+this_df = df_metrics.copy().drop(columns="daytime").groupby(["sub_id", "subtype"], as_index=False).mean()
+
+fig, ax = plt.subplots(figsize = (2, 4))
+sns.boxplot(
+    data = this_df,
+    hue = "subtype",
+    y = "lzc", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    dodge="auto",
+    fill=False,
+    linewidth=2,
+    ax=ax,
+    legend=None,
+    showfliers=False,
+    gap=0.1
+    )
+sns.stripplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    alpha = .2,
+    dodge=True,
+    ax=ax,
+    legend=None
+    )
+
+fig.tight_layout()
+
+ax.set_yticks(
+    np.linspace(0.3, 1, 8),
+    np.round(np.linspace(0.3, 1, 8), 1),
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(.3, 1)
+ax.set_xticks(
+    []
+    )
+ax.set_ylabel("KSS Lampel Zeiv Complexity", font = bold_font, fontsize = 16)
+sns.despine(bottom = True)
+
+f.tight_layout()
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "lzc_sleepi.png"
+    ), dpi=300)
+
+# %% Sample Ent Sleepi
+
+fig, ax = plt.subplots(figsize = (2, 4))
+sns.boxplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    dodge="auto",
+    fill=False,
+    linewidth=2,
+    ax=ax,
+    legend=None,
+    showfliers=False,
+    gap=0.1
+    )
+sns.stripplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    alpha = .2,
+    dodge=True,
+    ax=ax,
+    legend=None
+    )
+fig.tight_layout()
+
+ax.set_yticks(
+    np.linspace(0, 2, 5),
+    np.round(np.linspace(0, 2, 5), 1),
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(0, 2)
+ax.set_xticks(
+    []
+    )
+ax.set_ylabel("KSS Sample Entropy", font = bold_font, fontsize = 16)
+sns.despine(bottom = True)
+
+f.tight_layout()
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "sampen_sleepi.png"
+    ), dpi=300)
+
+# %% Perm Ent Sleepi
+
+fig, ax = plt.subplots(figsize = (2, 4))
+sns.boxplot(
+    data = this_df,
+    hue = "subtype",
+    y = "perm_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    dodge="auto",
+    fill=False,
+    linewidth=2,
+    ax=ax,
+    legend=None,
+    showfliers=False,
+    gap=0.1
+    )
+sns.stripplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    alpha = .2,
+    dodge=True,
+    ax=ax,
+    legend=None
+    )
+fig.tight_layout()
+
+ax.set_yticks(
+    np.linspace(0, 2, 5),
+    np.round(np.linspace(0, 2, 5), 1),
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(0, 2)
+ax.set_xticks(
+    []
+    )
+ax.set_ylabel("KSS Permutation Entropy", font = bold_font, fontsize = 16)
+sns.despine(bottom = True)
+
+f.tight_layout()
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "perment_sleepi.png"
+    ), dpi=300)
+
+# %% MS entropy
+
+dic_stoi = {
+    "ON" : 1,
+    "MW_I" : 2,
+    "MB" : 3,
+    "MW_H" : 4,
+    "FORGOT" : 5
+    }
+dic_itos = {
+    1 : "ON", 
+    2 : "MW", 
+    3 : "MB", 
+    4 : "HA", 
+    5 : "FG"
+    }
+
+# —— Loop through subjects & blocks —— 
+results = {
+    "sub_id": [],
+    "subtype": [],
+    "daytime": [],
+    "perm_entropy": [],
+    "sample_entropy": [],
+    "lzc": [],
+}
+
+for sub_id in sub_df.sub_id.unique():
+    subid_df = sub_df[sub_df.sub_id == sub_id]
+    subtype  = subid_df.subtype.iloc[0]
+
+    for daytime in ["AM", "PM"]:
+        block = subid_df[subid_df.daytime == daytime]
+        if block.empty:
+            continue
+        
+        seq = np.asarray(
+            [dic_stoi[ms] for ms in block.mindstate.values]
+            )
+
+        # — Permutation Entropy —
+        pe = ant.perm_entropy(
+            seq,
+            order=PE_ORDER,
+            delay=PE_DELAY,
+            normalize=True
+        )
+
+        # — Sample Entropy —
+        r  = SE_R_FACTOR * np.std(seq, ddof=0)
+        se = sample_entropy(seq, SE_ORDER, r)
+
+        # — Lempel–Ziv Complexity —
+        # normalize=True scales to [0,1] relative to maximal complexity
+        lzc = ant.lziv_complexity(seq, normalize=True)
+
+        # — store —
+        results["sub_id"].append(sub_id)
+        results["subtype"].append(subtype)
+        results["daytime"].append(daytime)
+        results["perm_entropy"].append(pe)
+        results["sample_entropy"].append(se)
+        results["lzc"].append(lzc)
+
+# —— Build & inspect DataFrame —— 
+df_metrics = pd.DataFrame(results)
+df_metrics.to_csv(os.path.join(behavpath, "NT1_CTL", "entropy_ms.csv"))
+
+# %% LZC MS
+
+this_df = df_metrics.copy().drop(columns="daytime").groupby(["sub_id", "subtype"], as_index=False).mean()
+
+fig, ax = plt.subplots(figsize = (2, 4))
+sns.boxplot(
+    data = this_df,
+    hue = "subtype",
+    y = "lzc", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    dodge="auto",
+    fill=False,
+    linewidth=2,
+    ax=ax,
+    legend=None,
+    showfliers=False,
+    gap=0.1
+    )
+sns.stripplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    alpha = .2,
+    dodge=True,
+    ax=ax,
+    legend=None
+    )
+
+fig.tight_layout()
+
+ax.set_yticks(
+    np.linspace(0, 1.5, 4),
+    np.round(np.linspace(0, 1.5, 4), 1),
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(0,1.5)
+ax.set_xticks(
+    []
+    )
+ax.set_ylabel("MS Lampel Zeiv Complexity", font = bold_font, fontsize = 16)
+sns.despine(bottom = True)
+
+f.tight_layout()
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "lzc_MS.png"
+    ), dpi=300)
+
+# %% Sample Ent MS
+
+fig, ax = plt.subplots(figsize = (2, 4))
+sns.boxplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    dodge="auto",
+    fill=False,
+    linewidth=2,
+    ax=ax,
+    legend=None,
+    showfliers=False,
+    gap=0.1
+    )
+sns.stripplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    alpha = .2,
+    dodge=True,
+    ax=ax,
+    legend=None
+    )
+fig.tight_layout()
+
+ax.set_yticks(
+    np.linspace(0, 1.5, 4),
+    np.round(np.linspace(0, 1.5, 4), 1),
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(0,1.5)
+ax.set_xticks(
+    []
+    )
+ax.set_ylabel("MS Sample Entropy", font = bold_font, fontsize = 16)
+sns.despine(bottom = True)
+
+f.tight_layout()
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "sampen_MS.png"
+    ), dpi=300)
+
+# %% Perm Ent Sleepi
+
+fig, ax = plt.subplots(figsize = (2, 4))
+sns.boxplot(
+    data = this_df,
+    hue = "subtype",
+    y = "perm_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    dodge="auto",
+    fill=False,
+    linewidth=2,
+    ax=ax,
+    legend=None,
+    showfliers=False,
+    gap=0.1
+    )
+sns.stripplot(
+    data = this_df,
+    hue = "subtype",
+    y = "sample_entropy", 
+    hue_order = ["HS", "N1"],
+    palette = subtype_palette,
+    alpha = .2,
+    dodge=True,
+    ax=ax,
+    legend=None
+    )
+fig.tight_layout()
+
+ax.set_yticks(
+    np.linspace(0, 1.5, 4),
+    np.round(np.linspace(0, 1.5, 4), 1),
+    font = font, 
+    fontsize = 12
+    )
+ax.set_ylim(0,1.5)
+ax.set_xticks(
+    []
+    )
+ax.set_ylabel("MS Permutation Entropy", font = bold_font, fontsize = 16)
+sns.despine(bottom = True)
+
+f.tight_layout()
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "perment_MS.png"
+    ), dpi=300)

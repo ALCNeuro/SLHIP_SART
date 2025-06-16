@@ -49,6 +49,7 @@ df = pd.read_csv(os.path.join(
     wavesPath, "features", "all_SW_features_0.5_4.csv"
     ))
 del df['Unnamed: 0']
+df = df.loc[(df.channel!='TP9')&(df.channel!='TP10')]
 
 # channel_category = pd.Categorical(
 #     df['channel'], 
@@ -65,6 +66,7 @@ del df['Unnamed: 0']
 # mean_df = mean_df.loc[mean_df['sub_id'] != "26_eb"]
 
 epochs = mne.read_epochs(glob(f"{cleanDataPath}/epochs_probes/*.fif")[0])
+epochs.drop_channels(['TP9', 'TP10', 'VEOG', 'HEOG', 'ECG', 'RESP'])
 
 # df = df.loc[df.subtype != 'HI']
 df = df.loc[
@@ -168,7 +170,7 @@ features = {
 which = "density"
 
 fig, ax = plt.subplots(
-    nrows = 1, ncols = len(features[which]), figsize = (14, 5)
+    nrows = 1, ncols = len(features[which]), figsize = (12, 5)
     )
 
 for i, feature in enumerate(features[which]):
@@ -183,14 +185,14 @@ for i, feature in enumerate(features[which]):
             ].dropna()
         md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
         mdf = md.fit()
-        temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
-        temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
+        temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.N1]"])
+        temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.N1]"])
         chan_l.append(chan)
         
     if np.any(np.isnan(temp_tval)) :
         temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
          
-    # _, corrected_pval = fdrcorrection(temp_pval)
+    _, corrected_pval = fdrcorrection(temp_pval)
     
     divider = make_axes_locatable(ax[i])
     cax = divider.append_axes("right", size = "5%", pad=0.05)
@@ -212,7 +214,213 @@ for i, feature in enumerate(features[which]):
     
     fig.tight_layout()
         
-plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", f"me_subtype_{which}.png"), dpi = 300)    
+plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", f"me_subtype_{which}.png"), dpi = 300)   
+ 
+# %% Topo | LME - Subtype ME
+
+features = ['density_90hs', 'ptp_90hs', 'dslope_90hs', 'uslope_90hs']
+
+f_names = {
+    'density_90hs': "Density", 
+    'ptp_90hs' : "Amplitude", 
+    'dslope_90hs' : "Downward Slope", 
+    'uslope_90hs' : 'Upward Slope'
+    }
+
+fig, ax = plt.subplots(
+    nrows = 1, ncols = len(features), figsize = (10, 3)
+    )
+
+for i, feature in enumerate(features):
+    model = f"{feature} ~ C(subtype, Treatment('HS'))" 
+    temp_tval = []; temp_pval = []; chan_l = []
+    for chan in channels :
+        subdf = df[
+            ['sub_id', 'subtype', 'channel', feature]
+            ].loc[
+            (df.channel == chan)
+            & (df.subtype.isin(['N1', 'HS']))
+            ].dropna()
+        md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
+        mdf = md.fit()
+        temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.N1]"])
+        temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.N1]"])
+        chan_l.append(chan)
+        
+    if np.any(np.isnan(temp_tval)) :
+        temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+         
+    _, corrected_pval = fdrcorrection(temp_pval)
+    
+    divider = make_axes_locatable(ax[i])
+    cax = divider.append_axes("right", size = "5%", pad=0.05)
+    im, cm = mne.viz.plot_topomap(
+        data = temp_tval,
+        pos = epochs.info,
+        axes = ax[i],
+        contours = 3,
+        mask = np.asarray(corrected_pval) <= 0.05,
+        mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                    linewidth=0, markersize=8),
+        cmap = "coolwarm",
+        # vlim = (0, 4.5),
+        size = 2.5
+        )
+    fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+    ax[i].set_title(f"{f_names[feature]} N1 > HS", fontweight = "bold", fontsize = 12)
+    
+    fig.tight_layout()
+        
+plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", f"me_subtype_SW_corr.png"), dpi = 300)    
+
+# %% Diff MS within GROUP
+
+interest = 'density_90hs'
+contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW"), ("ON", "HALLU"), ("ON", "FORGOT")]
+
+subtypes = ['HS', 'N1']
+
+fig, ax = plt.subplots(
+    nrows = len(subtypes), 
+    ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
+    figsize = (12,8),
+    )
+for i_s, subtype in enumerate(subtypes) :
+    this_ax = ax[i_s]
+    for i_c, contrast in enumerate(contrasts) :
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = df.loc[
+            (df.mindstate.isin(contrast))
+            & (df.subtype == subtype)
+            ]
+        
+        model = f"{interest} ~ C(mindstate, Treatment('{contrast[0]}'))" 
+    
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
+            mdf = md.fit()
+            
+            if f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]" not in mdf.tvalues.index :
+                temp_tval.append(np.nan)
+                temp_pval.append(1)
+                chan_l.append(chan)
+            else : 
+                temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            for pos in np.where(np.isnan(temp_tval))[0] :
+                temp_tval[pos] = np.nanmean(temp_tval)
+             
+        # _, corrected_pval = fdrcorrection(temp_pval)
+        
+        divider = make_axes_locatable(this_ax[i_c])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = temp_tval,
+            pos = epochs.info,
+            axes = this_ax[i_c],
+            contours = 3,
+            mask = np.asarray(temp_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=8),
+            cmap = "coolwarm",
+            vlim = (-2.5, 2.5)
+            )
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        this_ax[i_c].set_title(f"{contrast[1]} > {contrast[0]}", fontweight = "bold")
+
+fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
+fig.tight_layout()
+figsavename = os.path.join(
+    wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_{interest}.png'
+    )
+plt.savefig(figsavename, dpi = 300)
+
+# %% Diff group within MS
+
+interest = 'density_90hs'
+mindstates = ["ON", "MW", "MB", "HALLU", "FORGOT"]
+subtype_contrast = ('HS', 'N1')  # HS is the baseline, we test N1 > HS
+
+fig, axes = plt.subplots(
+    nrows=1,
+    ncols=len(mindstates),
+    figsize=(2.2*len(mindstates), 3)
+    )
+
+for i_ms, ms in enumerate(mindstates):
+    ax = axes[i_ms]
+    temp_tval = []
+    temp_pval = []
+    chan_l = []
+
+    # restrict to this mindstate
+    cond_df = df[(df.mindstate == ms) & (df.subtype.isin(subtype_contrast))]
+
+    # mixed‐model formula compares subtype N1 against baseline HS
+    model = f"{interest} ~ C(subtype, Treatment('{subtype_contrast[0]}'))"
+
+    for chan in channels:
+        subdf = (
+            cond_df
+            .loc[cond_df.channel == chan, ['sub_id','subtype','channel', interest]]
+            .dropna()
+        )
+
+        md = smf.mixedlm(model, subdf, groups=subdf['sub_id'], missing='drop')
+        mdf = md.fit()
+
+        term = f"C(subtype, Treatment('{subtype_contrast[0]}'))[T.{subtype_contrast[1]}]"
+        if term in mdf.tvalues.index:
+            temp_tval.append(mdf.tvalues[term])
+            temp_pval.append(mdf.pvalues[term])
+        else:
+            temp_tval.append(np.nan)
+            temp_pval.append(1.0)
+
+        chan_l.append(chan)
+
+    # replace any remaining NaNs by the channel‐wise mean
+    if np.any(np.isnan(temp_tval)):
+        mean_t = np.nanmean(temp_tval)
+        temp_tval = [mean_t if np.isnan(t) else t for t in temp_tval]
+
+    # plot
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    im, cm = mne.viz.plot_topomap(
+        data=temp_tval,
+        pos=epochs.info,
+        axes=ax,
+        contours=3,
+        mask=np.array(temp_pval) <= 0.05,
+        mask_params=dict(
+            marker='o', markerfacecolor='w',
+            markeredgecolor='k', linewidth=0, markersize=8
+        ),
+        cmap="coolwarm",
+        vlim=(0, 4)
+    )
+    fig.colorbar(im, cax=cax, orientation='vertical')
+
+    ax.set_title(f"NT1 > CTL in {ms}", fontweight="bold")
+
+fig.suptitle(interest, fontweight='bold', fontsize=18)
+fig.tight_layout()
+# adjust/save
+outname = os.path.join(
+    wavesPath, 'figs', 'NT1_CTL',
+    f'topo_{interest}_subtype_diff_by_mindstate.png'
+)
+plt.savefig(outname, dpi=300)
+plt.show()
 
 # %% NOT ENOUGH DATA LME Mindstate | Feature | HS, NT1, HI
 
@@ -286,25 +494,29 @@ fig.tight_layout()
 # %% Topo | LME - MS > ON effect
 
 compa_df = df.loc[df.subtype=="N1"]
-compa_df = compa_df.drop(columns=["n_epoch", "nprobe"]).groupby(
-    ["sub_id", "subtype", "channel", "mindstate", "nblock", "daytime"], as_index=False
-    ).mean()
 
-interest = 'density'
+interest = ['density_90hs', 'ptp_90hs', 'dslope_90hs', 'uslope_90hs']
+
+vlims = {
+    'density_90hs' : (-4, 4), 
+    'ptp_90hs' : (-2.5, 2.5), 
+    'dslope_90hs' : (-3, 3), 
+    'uslope_90hs' :(-2.5, 2.5)
+    }
 
 these_ms = ["ON", "MW", "MB", "FORGOT"]
 
 fig, axs = plt.subplots(
-    nrows = len(mindstates[1:]), ncols = len(features[interest]), figsize = (16, 16))
+    nrows = len(mindstates[1:]), ncols = len(interest), figsize = (16, 16))
 
 for i, mindstate in enumerate(these_ms):
     ax = axs[i]
-    for j, feat in enumerate(features[interest]) :
+    for j, feat in enumerate(interest) :
         
         model = f"{feat} ~ C(mindstate, Treatment('HALLU'))" 
         
         temp_tval = []; temp_pval = []; chan_l = []
-        cond_df = compa_df.loc[compa_df.mindstate.isin(['HALLU', mindstate])]
+        cond_df = df.loc[df.mindstate.isin(['HALLU', mindstate])]
         for chan in channels :
             subdf = cond_df[
                 ['sub_id', 'subtype', 'mindstate', 'channel', feat]
@@ -330,16 +542,16 @@ for i, mindstate in enumerate(these_ms):
             mask = np.asarray(temp_pval) <= 0.05,
             mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
                         linewidth=0, markersize=6),
-            cmap = "viridis",
-            # vlim = (-4, 4)
+            cmap = "coolwarm",
+            vlim = vlims[feat]
             )
         fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-        ax[j].set_title(f"{feat} {mindstate} > HALLU", fontweight = "bold", fontsize = 12)
+        # ax[j].set_title(f"{feat} {mindstate} > HALLU", fontweight = "bold", fontsize = 12)
 fig.tight_layout()
 plt.savefig(
     os.path.join(
-        figs_path, "NT1_CTL", f"topo_NT1_MS_{interest}_fulldf_vshallu.png"), dpi = 300)
+        figs_path, "NT1_CTL", f"SW_feat_NT1_MS_fulldf_vshallu.png"), dpi = 300)
     
 # %% Topo | LME - MS behav
 
