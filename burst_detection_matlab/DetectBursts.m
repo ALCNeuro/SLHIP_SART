@@ -6,7 +6,7 @@ close all
 DataFolder = 'D:\Data\ArthurNarcolepsy\SET';
 DestinationFolder = 'D:\Data\ArthurNarcolepsy\DetectedBursts';
 RerunAnalysis = false;
-RunParallelBurstDetection = true; % true for faster processing
+RunParallelBurstDetection = true; % true for faster processing; but set to false if crashes due to out of memory
 
 %%% criteria to find bursts in single channels
 % irregular shaped bursts, few criteria, but needs more cycles. This is
@@ -96,11 +96,25 @@ for FileIdx = 1:numel(Files)
 
     KeepPoints = nnz(KeepTimepoints); % only if there's artifact data
 
-    BurstsRedux = rmfield(Bursts, {'...'});
-    BurstClustersRedux = rmfield(BurstClusters, {''});
+    Bursts = cycy.average_cycles(Bursts, {'Amplitude', 'PeriodPos', 'PeriodNeg'});
+
+    BurstsRedux = rmfield(Bursts, {'CycleIndexes', 'VoltageNextPos', 'PrevPosPeakIdx', ...
+        'NextPosPeakIdx', 'VoltagePrevPos', 'VoltageNeg', 'NegPeakIdx', 'Amplitude', ...
+        'FallingFlankAmplitude', 'RisingFlankAmplitude', 'FlankConsistency', 'PeriodPos', 'PeriodNeg', ...
+        'AmplitudeRamp', 'AmplitudeConsistency', 'MonotonicityInTime', 'MonotonicityInAmplitude', 'ReversalRatio', ...
+        'PeriodConsistency', 'ShapeConsistency', 'debugUniqueCriteria'});
+
+    BurstClusters = cycy.average_cycles(BurstClusters, {'ClusterFrequency', 'ClusterAmplitude'});
+    BurstClustersRedux = rmfield(BurstClusters, {'CycleIndexes', 'VoltageNextPos', 'PrevPosPeakIdx', ...
+        'NextPosPeakIdx', 'VoltagePrevPos', 'VoltageNeg', 'NegPeakIdx', 'Amplitude', ...
+        'FallingFlankAmplitude', 'RisingFlankAmplitude', 'FlankConsistency', 'PeriodPos', 'PeriodNeg', ...
+        'AmplitudeRamp', 'AmplitudeConsistency', 'MonotonicityInTime', 'MonotonicityInAmplitude', 'ReversalRatio', ...
+        'PeriodConsistency', 'ShapeConsistency', 'ClusterBurstsIdx', 'ClusterChannelLabels', 'ClusterCycleCounts', ...
+        'ClusterSigns', 'ClusterFrequency', 'ClusterCriteriaSetIndexes', 'ClusterAmplitude', ...
+        'ClusterAmplitudeSum', 'ClusterPeaks', 'debugUniqueCriteria'});
 
     BurstsTable = struct2table(BurstsRedux);
-    BurstClustersRedux = struct2table(BurstClustersRedux);
+    BurstClustersTable = struct2table(BurstClustersRedux);
     % cycy.plot.plot_all_bursts(EEG, 20, BurstClusters, 'Band');
 
     save(fullfile(DestinationFolder, DestinationFileMAT), 'BurstClusters', 'Bursts', 'KeepPoints', 'Chanlocs', 'SampleRate')
