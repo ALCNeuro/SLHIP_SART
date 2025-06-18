@@ -1,7 +1,14 @@
 %%% script to run burst detection on NARCO data
+
 clear
 clc
 close all
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Parameters
+
+
+%%% things to change before running code
 
 DataFolder = 'D:\Data\ArthurNarcolepsy\SET';
 DestinationFolder = 'D:\Data\ArthurNarcolepsy\DetectedBursts';
@@ -13,14 +20,13 @@ RunParallelBurstDetection = false; % true for faster processing; but set to fals
 % criteria set 3 in the paper. (I don't change the order now in the script,
 % because it would inaccurately refect the indexing saved in the detected
 % bursts).
-Idx = 1; % this is to make it easier to skip some
+Idx = 1; % (ignore, this is to make it easier to skip some when debugging)
 CriteriaSets = struct();
 CriteriaSets(Idx).PeriodConsistency = .6;
 CriteriaSets(Idx).AmplitudeConsistency = .6;
 CriteriaSets(Idx).MonotonicityInAmplitude = .6;
 CriteriaSets(Idx).FlankConsistency = .6;
 CriteriaSets(Idx).MinCyclesPerBurst = 5;
-% % without periodneg, to capture bursts that accelerate/decelerate
 
 % short bursts, strict monotonicity requirements. This is criteria set 2.
 Idx = Idx+1;
@@ -52,6 +58,10 @@ Bands.ThetaAlpha = [6 10];
 Bands.Alpha = [8 12];
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Run
+
+%%% identify files and set up destination
 Files = deblank(string(ls(DataFolder)));
 Files(~contains(Files, '.set')) = [];
 
@@ -63,15 +73,18 @@ for FileIdx = 1:numel(Files)
 
     File = Files{FileIdx};
     DestinationFileCSV = [extractBefore(File, '.set'), '.csv'];
+    DestinationFileMAT = [extractBefore(File, '.set'), '.mat'];
 
-    if ~RerunAnalysis && exist(fullfile(DestinationFolder, DestinationFileCSV), 'file')
+    if ~RerunAnalysis && exist(fullfile(DestinationFolder, ['Bursts_', DestinationFileCSV]), 'file')
         disp(['already did ', File])
         continue
     end
 
+    %%% Prepare EEG data
+
     EEG = pop_loadset('filename', File, 'filepath', DataFolder);
 
-    EEG = pop_select(EEG, 'channel', 1:64);
+    EEG = pop_select(EEG, 'channel', 1:64); % ignore heartbeat and other extras
 
     SampleRate = EEG.srate;
     Chanlocs = EEG.chanlocs;
@@ -80,14 +93,15 @@ for FileIdx = 1:numel(Files)
     EEG = pop_eegfiltnew(EEG, 1);
     EEG = pop_eegfiltnew(EEG,  [], 40);
 
-    % any timepoints marked as bad?
+    % any timepoints marked as bad (optional for later if we want)
     KeepTimepoints = ones(1, size(EEG.data, 2));
 
     % filter data into narrowbands
     EEGNarrowbands = cycy.filter_eeg_narrowbands(EEG, Bands);
 
 
-    % apply burst detection
+    %%% apply burst detection
+
     Bursts = cycy.detect_bursts_all_channels(EEG, EEGNarrowbands, Bands, ...
         CriteriaSets, RunParallelBurstDetection, KeepTimepoints);
 
@@ -100,20 +114,22 @@ for FileIdx = 1:numel(Files)
 
     KeepPoints = nnz(KeepTimepoints); % only if there's artifact data
 
+    % average information on the cycles
     Bursts = cycy.average_cycles(Bursts, {'Amplitude', 'PeriodPos', 'PeriodNeg'});
+    BurstClusters = cycy.average_cycles(BurstClusters, {'ClusterFrequency', 'ClusterAmplitude'});
 
+    % remove all fields that have more than 1 value (like points of each
+    % cycle)
     BurstsRedux = rmfield(Bursts, setdiff(fieldnames(Bursts), {'CyclesCount', 'Start', 'End', ...
         'BurstFrequency', 'DurationPoints', 'Band', 'ChannelIndex', 'ChannelIndexLabel', 'CriteriaSetIndex', ...
         'MeanAmplitude', 'MeanPeriodPos', 'MeanPeriodNeg'}));
-
-
-    BurstClusters = cycy.average_cycles(BurstClusters, {'ClusterFrequency', 'ClusterAmplitude'});
 
     BurstClustersRedux = rmfield(BurstClusters, setdiff(fieldnames(BurstClusters), {'CyclesCount', 'Start', 'End', ...
         'BurstFrequency', 'DurationPoints', 'Band', 'ChannelIndex', 'ChannelIndexLabel', 'CriteriaSetIndex', ...
         'ClusterStart', 'ClusterEnd', 'ClusterGlobality', ...
         'MeanClusterAmplitude', 'MeanClusterFrequency'}));
 
+    %%% save data
     BurstsTable = struct2table(BurstsRedux);
     BurstClustersTable = struct2table(BurstClustersRedux);
 
@@ -121,11 +137,15 @@ for FileIdx = 1:numel(Files)
     writetable(BurstsTable, fullfile(DestinationFolder, ['Bursts_', DestinationFileCSV]))
     writetable(BurstClustersTable, fullfile(DestinationFolder, ['BurstCluster_', DestinationFileCSV]))
 
+    %%% plot and save plots as quality check
     close all
+    
+    % plot all data and highlight detected bursts
     cycy.plot.plot_all_bursts(EEG, 20, BurstClusters, 'Band');
     axis tight
     saveas(gcf, fullfile(DestinationFolder, [extractBefore(File, '.set'), '_Full.jpg']))
 
+    % plot frequencies detected
     plot_overview(Bursts, flip(fieldnames(Bands)), numel(Chanlocs))
     saveas(gcf, fullfile(DestinationFolder, [extractBefore(File, '.set'), '_Histograms.jpg']))
 
@@ -133,7 +153,10 @@ for FileIdx = 1:numel(Files)
 end
 
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% functions
 
+% plot histograms
 function plot_overview(Bursts, BandLabels, MaxChannels)
 figure('units', 'centimeters', 'position', [0 0 20 10])
 subplot(1, 2, 1)
