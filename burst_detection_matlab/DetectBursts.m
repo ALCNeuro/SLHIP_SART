@@ -6,7 +6,7 @@ close all
 DataFolder = 'D:\Data\ArthurNarcolepsy\SET';
 DestinationFolder = 'D:\Data\ArthurNarcolepsy\DetectedBursts';
 RerunAnalysis = false;
-RunParallelBurstDetection = true; % true for faster processing; but set to false if crashes due to out of memory
+RunParallelBurstDetection = false; % true for faster processing; but set to false if crashes due to out of memory
 
 %%% criteria to find bursts in single channels
 % irregular shaped bursts, few criteria, but needs more cycles. This is
@@ -60,6 +60,7 @@ if ~exist(DestinationFolder, 'dir')
 end
 
 for FileIdx = 1:numel(Files)
+
     File = Files{FileIdx};
     DestinationFileCSV = [extractBefore(File, '.set'), '.csv'];
 
@@ -69,6 +70,9 @@ for FileIdx = 1:numel(Files)
     end
 
     EEG = pop_loadset('filename', File, 'filepath', DataFolder);
+
+    EEG = pop_select(EEG, 'channel', 1:64);
+
     SampleRate = EEG.srate;
     Chanlocs = EEG.chanlocs;
 
@@ -82,7 +86,7 @@ for FileIdx = 1:numel(Files)
     % filter data into narrowbands
     EEGNarrowbands = cycy.filter_eeg_narrowbands(EEG, Bands);
 
-    %%
+
     % apply burst detection
     Bursts = cycy.detect_bursts_all_channels(EEG, EEGNarrowbands, Bands, ...
         CriteriaSets, RunParallelBurstDetection, KeepTimepoints);
@@ -98,26 +102,53 @@ for FileIdx = 1:numel(Files)
 
     Bursts = cycy.average_cycles(Bursts, {'Amplitude', 'PeriodPos', 'PeriodNeg'});
 
-    BurstsRedux = rmfield(Bursts, {'CycleIndexes', 'VoltageNextPos', 'PrevPosPeakIdx', ...
-        'NextPosPeakIdx', 'VoltagePrevPos', 'VoltageNeg', 'NegPeakIdx', 'Amplitude', ...
-        'FallingFlankAmplitude', 'RisingFlankAmplitude', 'FlankConsistency', 'PeriodPos', 'PeriodNeg', ...
-        'AmplitudeRamp', 'AmplitudeConsistency', 'MonotonicityInTime', 'MonotonicityInAmplitude', 'ReversalRatio', ...
-        'PeriodConsistency', 'ShapeConsistency', 'debugUniqueCriteria'});
+    BurstsRedux = rmfield(Bursts, setdiff(fieldnames(Bursts), {'CyclesCount', 'Start', 'End', ...
+        'BurstFrequency', 'DurationPoints', 'Band', 'ChannelIndex', 'ChannelIndexLabel', 'CriteriaSetIndex', ...
+        'MeanAmplitude', 'MeanPeriodPos', 'MeanPeriodNeg'}));
+
 
     BurstClusters = cycy.average_cycles(BurstClusters, {'ClusterFrequency', 'ClusterAmplitude'});
-    BurstClustersRedux = rmfield(BurstClusters, {'CycleIndexes', 'VoltageNextPos', 'PrevPosPeakIdx', ...
-        'NextPosPeakIdx', 'VoltagePrevPos', 'VoltageNeg', 'NegPeakIdx', 'Amplitude', ...
-        'FallingFlankAmplitude', 'RisingFlankAmplitude', 'FlankConsistency', 'PeriodPos', 'PeriodNeg', ...
-        'AmplitudeRamp', 'AmplitudeConsistency', 'MonotonicityInTime', 'MonotonicityInAmplitude', 'ReversalRatio', ...
-        'PeriodConsistency', 'ShapeConsistency', 'ClusterBurstsIdx', 'ClusterChannelLabels', 'ClusterCycleCounts', ...
-        'ClusterSigns', 'ClusterFrequency', 'ClusterCriteriaSetIndexes', 'ClusterAmplitude', ...
-        'ClusterAmplitudeSum', 'ClusterPeaks', 'debugUniqueCriteria'});
+
+    BurstClustersRedux = rmfield(BurstClusters, setdiff(fieldnames(BurstClusters), {'CyclesCount', 'Start', 'End', ...
+        'BurstFrequency', 'DurationPoints', 'Band', 'ChannelIndex', 'ChannelIndexLabel', 'CriteriaSetIndex', ...
+        'ClusterStart', 'ClusterEnd', 'ClusterGlobality', ...
+        'MeanClusterAmplitude', 'MeanClusterFrequency'}));
 
     BurstsTable = struct2table(BurstsRedux);
     BurstClustersTable = struct2table(BurstClustersRedux);
-    % cycy.plot.plot_all_bursts(EEG, 20, BurstClusters, 'Band');
 
     save(fullfile(DestinationFolder, DestinationFileMAT), 'BurstClusters', 'Bursts', 'KeepPoints', 'Chanlocs', 'SampleRate')
     writetable(BurstsTable, fullfile(DestinationFolder, ['Bursts_', DestinationFileCSV]))
     writetable(BurstClustersTable, fullfile(DestinationFolder, ['BurstCluster_', DestinationFileCSV]))
+
+    close all
+    cycy.plot.plot_all_bursts(EEG, 20, BurstClusters, 'Band');
+    axis tight
+    saveas(gcf, fullfile(DestinationFolder, [extractBefore(File, '.set'), '_Full.jpg']))
+
+    plot_overview(Bursts, flip(fieldnames(Bands)), numel(Chanlocs))
+    saveas(gcf, fullfile(DestinationFolder, [extractBefore(File, '.set'), '_Histograms.jpg']))
+
+    disp(['Finished ', File])
+end
+
+
+
+function plot_overview(Bursts, BandLabels, MaxChannels)
+figure('units', 'centimeters', 'position', [0 0 20 10])
+subplot(1, 2, 1)
+histogram([Bursts.BurstFrequency], 2:0.5:14)
+xlabel('Frequency (Hz)')
+box off
+subplot(1, 2, 2)
+
+BurstBands = {Bursts.Band};
+
+hold on
+for BandIdx = 1:numel(BandLabels)
+    SubBursts = Bursts(strcmp(BurstBands, BandLabels{BandIdx}));
+    histogram([SubBursts.ChannelIndex], 1:MaxChannels, 'EdgeColor','none')
+end
+xlabel('Channel')
+legend(BandLabels)
 end
