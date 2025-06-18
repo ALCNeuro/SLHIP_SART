@@ -10,8 +10,8 @@ close all
 
 %%% things to change before running code
 
-DataFolder = 'D:\Data\ArthurNarcolepsy\SET';
-DestinationFolder = 'D:\Data\ArthurNarcolepsy\DetectedBursts';
+DataFolder = '/Volumes/DDE_ALC/PhD/SLHIP/01_Preproc/raw_dot_set';
+DestinationFolder = '/Volumes/DDE_ALC/PhD/SLHIP/09_Bursts/bursts_detected';
 RerunAnalysis = false;
 RunParallelBurstDetection = false; % true for faster processing; but set to false if crashes due to out of memory
 
@@ -62,8 +62,16 @@ Bands.Alpha = [8 12];
 %%% Run
 
 %%% identify files and set up destination
-Files = deblank(string(ls(DataFolder)));
-Files(~contains(Files, '.set')) = [];
+% Files = deblank(string(ls(DataFolder)));
+% Files(~contains(Files, '.set')) = [];
+
+% get a struct array of all .set files in your DataFolder
+d = dir(fullfile(DataFolder,'*.set'));
+
+% extract just the names into a cell-array (or string array)
+Files = { d.name }';             % cell array of char vectors
+% —or—
+Files = string({ d.name })';     % string array
 
 if ~exist(DestinationFolder, 'dir')
     mkdir(DestinationFolder)
