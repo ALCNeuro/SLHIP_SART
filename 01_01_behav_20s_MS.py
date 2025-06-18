@@ -1278,49 +1278,36 @@ print(model_result.summary())
 
 #### Plot
 
-# palette = ['#51b7ff','#a4abff']
-# palette = ['#565B69','#0070C0']
 data = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
     ['sub_id', 'subtype', 'mindstate'], as_index = False
     ).mean()
 y = 'percentage'
 x = "mindstate"
-order = ['ON', 'MW_I', 'MB', 'MW_H']#, 'FORGOT', 'MW_E']
+order = ['ON', 'MW_H', 'MW_I', 'MB', 'FORGOT']
 hue = "subtype"
 hue_order = ['HS', 'N1', 'HI']    
          
 fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (5, 4))
-sns.pointplot(
+     
+sns.barplot(
     data = data, 
     x = x,
     y = y,
     hue = hue,
     order = order,
     hue_order = hue_order,
-    errorbar = 'se',
-    capsize = 0.05,
-    dodge = .55,
-    linestyle = 'none',
-    alpha = .8,
-    palette = subtype_palette,
-    legend = None
-    )         
-# sns.violinplot(
-#     data = data, 
-#     x = x,
-#     y = y,
-#     hue = hue,
-#     order = order,
-#     hue_order = hue_order,
-#     fill = True,
-#     alpha = 0.2,
-#     dodge = True,
-#     linecolor = 'white',
-#     inner = None,
-#     legend = None,
-#     palette = subtype_palette,
-#     cut = .5
-#     )         
+    errorbar='se', 
+    orient=None, 
+    palette=subtype_palette, 
+    fill=False,
+    hue_norm=None, 
+    width=0.8, 
+    dodge='auto', 
+    gap=0, 
+    capsize=0.05, 
+    ax=ax,
+    legend=None
+    )
 sns.stripplot(
     data = data, 
     x = x,
@@ -1328,49 +1315,26 @@ sns.stripplot(
     hue = hue,
     order = order,
     hue_order = hue_order,
-    alpha = 0.2,
+    alpha = 0.1,
     dodge = True,
     legend = None,
     palette = subtype_palette
     )
 
-# plt.legend(
-#     title = "Subtype", 
-#     frameon = False, 
-#     bbox_to_anchor=(.5, .5, 0.5, 0.5), 
-#     title_fontsize = 14, 
-#     fontsize = 12
-#     ) 
-
-ax.set_ylabel('Pourcentage %', size = 24, font = bold_font)
-ax.set_xlabel('Mindstate', size = 24, font = bold_font)
+ax.set_ylabel('Pourcentage %', size = 18, font = bold_font)
+ax.set_xlabel('Mindstate', size = 18, font = bold_font)
 ax.set_ylim(0, 1)
 ax.set_xticks(
-    ticks = np.arange(0, 4, 1), 
-    labels = ["ON", "MW", "MB", "HALLU"],#, "FORGOT", 'DISTRACTED'],
+    ticks = np.arange(0, 5, 1), 
+    labels = ["ON", "HA", "MW", "MB", "FG"],
     font = font, 
-    fontsize = 16)
+    fontsize = 14)
 ax.set_yticks(
     ticks = np.arange(0, 1.2, .2), 
     labels = np.arange(0, 120, 20), 
     font = font, 
-    fontsize = 16)
-# ax.tick_params(axis='both', labelsize=16)
+    fontsize = 14)
 sns.despine()
-# title = """
-# <Mindstate Percentage> by <Subtype>"""
-# fig_text(
-#    0.1, .93,
-#    title,
-#    fontsize=20,
-#    ha='left', va='center',
-#    color="k", font=font,
-#    highlight_textprops=[
-#       {'font': bold_font},
-#       {'font': bold_font},
-#    ],
-#    fig=fig
-# )
 fig.tight_layout()
 
 plt.savefig(f"{behavpath}/point_strip_per_mindstates_by_subtype.png", dpi=200)

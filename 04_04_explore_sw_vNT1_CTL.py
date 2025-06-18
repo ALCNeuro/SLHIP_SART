@@ -51,6 +51,8 @@ df = pd.read_csv(os.path.join(
 del df['Unnamed: 0']
 df = df.loc[(df.channel!='TP9')&(df.channel!='TP10')]
 
+# %% Remove IH from df
+
 # channel_category = pd.Categorical(
 #     df['channel'], 
 #     categories = channels, 
@@ -276,7 +278,7 @@ plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", f"me_subtype_SW_corr.png"
 
 # %% Diff MS within GROUP
 
-interest = 'density_90hs'
+interest = 'density_p_90'
 contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW"), ("ON", "HALLU"), ("ON", "FORGOT")]
 
 subtypes = ['HS', 'N1']
@@ -339,7 +341,77 @@ for i_s, subtype in enumerate(subtypes) :
 fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
 fig.tight_layout()
 figsavename = os.path.join(
-    wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_{interest}.png'
+    wavesPath, 'figs',  f'topo_mindstates_subtypes_{interest}.png'
+    # wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_{interest}.png'
+    )
+plt.savefig(figsavename, dpi = 300)
+
+# %% Diff MS within GROUP vs hallu
+
+interest = 'density_p_90'
+contrasts = [("HALLU", "ON"), ("HALLU", "MW"), ("HALLU", "MB"), ("HALLU", "FORGOT")]
+
+subtypes = ['HS', 'N1']
+
+fig, ax = plt.subplots(
+    nrows = len(subtypes), 
+    ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
+    figsize = (10,6),
+    )
+for i_s, subtype in enumerate(subtypes) :
+    this_ax = ax[i_s]
+    for i_c, contrast in enumerate(contrasts) :
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = df.loc[
+            (df.mindstate.isin(contrast))
+            & (df.subtype == subtype)
+            ]
+        
+        model = f"{interest} ~ C(mindstate, Treatment('{contrast[0]}'))" 
+    
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
+            mdf = md.fit()
+            
+            if f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]" not in mdf.tvalues.index :
+                temp_tval.append(np.nan)
+                temp_pval.append(1)
+                chan_l.append(chan)
+            else : 
+                temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            for pos in np.where(np.isnan(temp_tval))[0] :
+                temp_tval[pos] = np.nanmean(temp_tval)
+             
+        # _, corrected_pval = fdrcorrection(temp_pval)
+        
+        divider = make_axes_locatable(this_ax[i_c])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = -np.asarray(temp_tval),
+            pos = epochs.info,
+            axes = this_ax[i_c],
+            contours = 3,
+            mask = np.asarray(temp_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=8),
+            cmap = "coolwarm",
+            vlim = (-2.5, 2.5)
+            )
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        this_ax[i_c].set_title(f"{contrast[0]} > {contrast[1]}", fontweight = "bold")
+
+# fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
+fig.tight_layout(pad=2)
+figsavename = os.path.join(
+    wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_{interest}_vsHALLU.png'
     )
 plt.savefig(figsavename, dpi = 300)
 

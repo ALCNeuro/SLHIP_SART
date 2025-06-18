@@ -19,7 +19,6 @@ from statsmodels.stats.multitest import fdrcorrection
 from statsmodels.nonparametric.smoothers_lowess import lowess
 from fooof import FOOOF
 from fooof.sim.gen import gen_aperiodic
-from fooof.bands import Bands
 from matplotlib.font_manager import FontProperties
 
 # font
@@ -47,7 +46,7 @@ fmax = 40
 n_fft = 1024
 n_per_seg = n_fft
 n_overlap = int(n_per_seg/2)
-window = "hamming"
+window = "hamming" 
 
 freq_bands = {
      'delta': (.5, 4),
@@ -61,7 +60,8 @@ threshold = dict(eeg = 600e-6)
 
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 
-coi = ['sub_id', 'subtype', 'channel', 'mindstate', 
+coi = ['sub_id', 'subtype', 'channel', 'mindstate', 'sleepiness', 
+   'n_probe', 'n_block', 'voluntary',
    'abs_delta','abs_theta','abs_alpha','abs_beta','abs_gamma',
    'rel_delta','rel_theta','rel_alpha','rel_beta','rel_gamma']
 
@@ -101,15 +101,18 @@ for i_file, file in enumerate(files) :
                 window = window,
                 picks = channels
                 )
+        this_metadata = metadata.loc[metadata.mindstate == ms]
         
-        for i_ch, channel in enumerate(channels) :
-            print(f'processing channel {channel}')
-            temp_list = []
-            for i_epoch in range(
-                    len(epochs[epochs.metadata.mindstate == ms])
-                    ) :
-                this_power = temp_power[i_epoch]                   
-                
+        for i_epoch in range(len(this_metadata)) :
+            
+            this_power = temp_power[i_epoch]   
+            this_sleepi = this_metadata.sleepiness.iloc[i_epoch]           
+            this_vol = this_metadata.voluntary.iloc[i_epoch]     
+            this_block = this_metadata.nblock.iloc[i_epoch]     
+            this_probe = this_metadata.nprobe.iloc[i_epoch]     
+            
+            for i_ch, channel in enumerate(channels):
+            
                 psd = lowess(np.squeeze(
                     this_power.copy().pick(channel).get_data()), 
                     freqs, 0.075)[:, 1]
@@ -134,39 +137,35 @@ for i_file, file in enumerate(files) :
                     )
                 
                 init_flat_spec = fm.power_spectrum - init_ap_fit
-                temp_list.append(init_flat_spec)
-            
-        for i_epoch in range(
-                len(epochs[epochs.metadata.mindstate == ms])
-                ) :
-            this_power = np.squeeze(temp_power[i_epoch])
-            
-            abs_bandpower_ch = {
-                 f"abs_{band}": np.nanmean(this_power[:,
-                         np.logical_and(freqs >= borders[0], freqs <= borders[1])
-                         ], axis = 1)
-                 for band, borders in freq_bands.items()}
-            
-            total_power = np.sum(
-                [abs_bandpower_ch[f"abs_{band}"] 
-                 for band, borders in freq_bands.items()]
-                )
-            
-            rel_bandpower_ch = {
-                f"rel_{band}" : abs_bandpower_ch[f"abs_{band}"] / total_power
-                for band in freq_bands.keys()
-                }
-            
-            for i_ch, channel in enumerate(channels) :
+                
+                abs_bandpower_ch = {
+                     f"abs_{band}": np.nanmean(init_flat_spec[
+                             np.logical_and(freqs >= borders[0], freqs <= borders[1])
+                             ], axis = 0) for band, borders in freq_bands.items()}
+                
+                total_power = np.sum(
+                    [abs_bandpower_ch[f"abs_{band}"] 
+                     for band, borders in freq_bands.items()]
+                    )
+                
+                rel_bandpower_ch = {
+                    f"rel_{band}" : abs_bandpower_ch[f"abs_{band}"] / total_power
+                    for band in freq_bands.keys()
+                    }
+                
                 bigdic['sub_id'].append(sub_id)
                 bigdic['subtype'].append(subtype)
                 bigdic['mindstate'].append(ms)
                 bigdic['channel'].append(channel)
+                bigdic['sleepiness'].append(this_sleepi)
+                bigdic['voluntary'].append(this_vol)
+                bigdic['n_block'].append(this_block)
+                bigdic['n_probe'].append(this_probe)
                 for col in cols_power :
                     if col.startswith('abs'):
-                        bigdic[col].append(abs_bandpower_ch[col][i_ch])
+                        bigdic[col].append(abs_bandpower_ch[col])
                     if col.startswith('rel'):
-                        bigdic[col].append(rel_bandpower_ch[col][i_ch])
+                        bigdic[col].append(rel_bandpower_ch[col])
                 
 df = pd.DataFrame.from_dict(bigdic)
 df.to_csv(os.path.join(bandpowerPath, "bandpower.csv"))

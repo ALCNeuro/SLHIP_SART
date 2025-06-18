@@ -1451,14 +1451,9 @@ transi_hs = av_transi.loc[av_transi.subtype=="HS"]
 transi_n1.drop(columns="subtype", inplace=True)
 transi_hs.drop(columns="subtype", inplace=True)
 
-# %% 
+# %% Compute Weighted MS TransMat
 
-from tqdm import tqdm
-
-# Assuming transition_matrix(actual_ms) returns (counts, probs) where probs is a pandas DataFrame
-# mapping states 1..5 to 1..5 probabilities
-
-# Mapping dictionaries
+# Define mappings between mindstate labels and integer codes
 dic_stoi = {
     "ON": 1,
     "MW_I": 2,
@@ -1466,118 +1461,247 @@ dic_stoi = {
     "MW_H": 4,
     "FORGOT": 5
     }
-dic_stoi_2 = {
-    "ON": 1,
-    "MW": 2,
-    "MB": 3,
-    "HA": 4,
-    "FG": 5
+dic_itos = {
+    1: "ON",
+    2: "MW",
+    3: "MB",
+    4: "HA",
+    5: "FG"
     }
-dic_itos = {1: "ON", 2: "MW", 3: "MB", 4: "HA", 5: "FG"}
 
-# Parameters
-n_perm = 100  # number of permutations
-alpha = 0.05   # for 95% CI -> use upper 97.5 percentile
+# Columns for accumulating transition data, including a count for weighting
+coi = [
+    'sub_id', 'subtype', 'daytime', 'mindstate', 'count',
+    'ON', 'MW', 'MB', 'HA', 'FG'
+    ]
+# Prepare accumulator
+thisdic = {c: [] for c in coi}
 
-# Collect all subject/daytime matrices in advance
-subjects = sub_df.sub_id.unique()
-days = ["AM", "PM"]
-groups = sub_df.subtype.unique()
+# List of probability columns in the source data
+# proba_cols = ["proba_ON", "proba_MW", "proba_MB", "proba_HA", "proba_FG"]
 
-# Compute actual individual transition probabilities
-thisdic = {c: [] for c in ["sub_id", "subtype", "daytime", "mindstate",
-                             "proba_ON", "proba_MW", "proba_MB", "proba_HALLU", "proba_FORGOT"]}
+# Loop over each subject
+for sub_id in sub_df.sub_id.unique():
+    subid_df = sub_df[sub_df.sub_id == sub_id]
+    subtype = subid_df.subtype.iloc[0]
 
-# Store each subject-daytime matrix for pruning later
-matrices_by_sub = {}
-for sub_id in subjects:
-    subdf = sub_df[sub_df.sub_id == sub_id]
-    subtype = subdf.subtype.iloc[0]
-    matrices_by_sub[sub_id] = {}
-    for daytime in days:
-        tmp = subdf[subdf.daytime == daytime]
-        if tmp.empty:
+    for daytime in ["AM", "PM"]:
+        chunk = subid_df[subid_df.daytime == daytime]
+        # Need at least two timepoints to form a transition
+        if chunk.shape[0] < 2:
             continue
-        actual_ms = np.array([dic_stoi[s] for s in tmp.mindstate])
-        _, probs = transition_matrix(actual_ms)
-        # convert to numpy[5,5]
-        mat = np.full((5,5), np.nan)
-        for i in probs.index:
-            for j in probs.columns:
-                mat[i-1, j-1] = probs.loc[i, j]
-        matrices_by_sub[sub_id][daytime] = (subtype, mat)
-        # flatten into dataframe
+
+        # Convert mindstate labels to integer codes
+        states = np.array([dic_stoi[ms] for ms in chunk.mindstate.values]) - 1
+
+        # Build raw count matrix for this chunk
+        C = np.zeros((5, 5), dtype=float)
+        for t in range(len(states) - 1):
+            i, j = states[t], states[t+1]
+            C[i, j] += 1
+
+        # Compute per-row sums (number of transitions from each state)
+        row_sums = C.sum(axis=1, keepdims=True)
+        # Avoid division by zero by setting zero-sum rows to 1 (will yield zero probabilities)
+        row_sums[row_sums == 0] = 1
+
+        # Compute probability matrix for this chunk
+        P_chunk = C / row_sums
+
+        # Append each row (state i → all j) with its count
         for i in range(5):
             thisdic['sub_id'].append(sub_id)
             thisdic['subtype'].append(subtype)
             thisdic['daytime'].append(daytime)
             thisdic['mindstate'].append(dic_itos[i+1])
-            thisdic['proba_ON'].append(mat[i, 0])
-            thisdic['proba_MW'].append(mat[i, 1])
-            thisdic['proba_MB'].append(mat[i, 2])
-            thisdic['proba_HALLU'].append(mat[i, 3])
-            thisdic['proba_FORGOT'].append(mat[i, 4])
+            # count of transitions from state i
+            thisdic['count'].append(int(row_sums[i, 0]))
+            # probabilities to each next state
+            thisdic['ON'].append(P_chunk[i, 0])
+            thisdic['MW'].append(P_chunk[i, 1])
+            thisdic['MB'].append(P_chunk[i, 2])
+            thisdic['HA'].append(P_chunk[i, 3])
+            thisdic['FG'].append(P_chunk[i, 4])
 
+# Build DataFrame of all per-chunk transitions
 df_transi = pd.DataFrame.from_dict(thisdic)
 
-# Prepare null distributions per group, per transition
+# Define a function to compute weighted average of probabilities per group
+prob_cols = ['ON', 'MW', 'MB', 'HA', 'FG']
+
+def weighted_mean(group):
+    w = group['count'].values
+    return pd.Series({
+        col: np.average(group[col], weights=w)
+        for col in prob_cols
+    })
+
+# Group by subtype and mindstate, applying the weighted mean
+av_transi_w = (
+    df_transi
+    .groupby(['subtype', 'mindstate'], as_index=False)
+    .apply(weighted_mean)
+    .reset_index()
+    )
+
+# Order the mindstate index
+order = ['ON', 'MW', 'MB', 'HA', 'FG']
+av_transi_w['mindstate'] = pd.Categorical(
+    av_transi_w['mindstate'], categories=order, ordered=True
+    )
+av_transi_w = av_transi_w.sort_values(['subtype', 'mindstate']).reset_index(drop=True)
+
+# Pivot into matrices per subtype
+transi_n1 = (
+    av_transi_w[av_transi_w.subtype == 'N1']
+    .set_index('mindstate')[prob_cols]
+    )
+transi_hs = (
+    av_transi_w[av_transi_w.subtype == 'HS']
+    .set_index('mindstate')[prob_cols]
+    )
+
+# Example: display or save the resulting matrices
+print("Weighted transition matrix for NT1:")
+print(transi_n1)
+print("\nWeighted transition matrix for CTL:")
+print(transi_hs)
+
+# %% 
+
+import numpy as np
+import pandas as pd
+from tqdm import tqdm
+
+# --- User-supplied DataFrame: sub_df with columns:
+#    sub_id, subtype, daytime, mindstate, proba_ON, proba_MW, proba_MB, proba_HA, proba_FG
+#    and a function transition_matrix(seq) -> (counts_df, probs_df) if desired.
+
+# --- Settings
+dic_stoi = {"ON":1, "MW_I":2, "MB":3, "MW_H":4, "FORGOT":5}
+dic_itos = {v:k for k,v in dic_stoi.items()}
+prob_cols = ['ON','MW','MB','HA','FG']
+groups = sub_df.subtype.unique()
+n_perm = 1000      # number of permutations
+a_alpha = 0.05     # significance level for pruning
+days = ['AM','PM']
+
+# --- 1. Gather chunks
+chunks = []  # each entry: dict with sub_id, subtype, daytime, states (zero-based)
+for sub_id in sub_df.sub_id.unique():
+    sdf = sub_df[sub_df.sub_id==sub_id]
+    subtype = sdf.subtype.iloc[0]
+    for dt in days:
+        dfc = sdf[sdf.daytime==dt]
+        if dfc.shape[0] < 2:
+            continue
+        # zero-based integer codes
+        seq = dfc.mindstate.map(dic_stoi).to_numpy() - 1
+        chunks.append({
+            'sub_id':sub_id,
+            'subtype':subtype,
+            'daytime':dt,
+            'seq': seq
+        })
+
+# --- Weighted transition helper
+def compute_chunk_probs(seq):
+    # raw counts
+    C = np.zeros((5,5),float)
+    for t in range(len(seq)-1):
+        C[seq[t], seq[t+1]] += 1
+    # row sums and avoid zeros
+    rs = C.sum(axis=1,keepdims=True)
+    rs[rs==0] = 1.0
+    P = C/rs
+    counts = rs.flatten().astype(int)
+    return P, counts
+
+# --- 2. Compute actual weighted group-average matrix
+df_rows = []
+for ch in chunks:
+    P, counts = compute_chunk_probs(ch['seq'])
+    for i in range(5):
+        row = {
+            'subtype': ch['subtype'],
+            'mindstate': dic_itos[i+1],
+            'count': counts[i]
+        }
+        for k,col in enumerate(prob_cols):
+            row[col] = P[i,k]
+        df_rows.append(row)
+
+df_actual = pd.DataFrame(df_rows)
+
+def weighted_mean(g):
+    w = g['count'].to_numpy()
+    return pd.Series({col: np.average(g[col], weights=w) for col in prob_cols})
+
+av_actual = (
+    df_actual
+    .groupby(['subtype','mindstate'],as_index=False)
+    .apply(weighted_mean)
+    .reset_index()
+    )
+# pivot to dict of matrices
+dict_actual = {}
+for grp in groups:
+    tmp = av_actual[av_actual.subtype==grp]
+    tmp = tmp.set_index('mindstate')[prob_cols]
+    dict_actual[grp] = tmp.loc[['ON','MW_I','MB','MW_H','FORGOT']]
+
+# --- 3. Build null distributions via permutation
 null_dist = {grp: { (i,j): [] for i in range(5) for j in range(5)} for grp in groups}
 
-# Run permutations
-for _ in tqdm(range(n_perm), desc="Permuting"):
-    # for each subject-daytime, shuffle the sequence
-    perm_mats = {grp: [] for grp in groups}
-    for sub_id, dt_dict in matrices_by_sub.items():
-        for daytime, (subtype, mat) in dt_dict.items():
-            # retrieve original sequence
-            tmp = sub_df[(sub_df.sub_id == sub_id) & (sub_df.daytime == daytime)]
-            ms_seq = np.array([dic_stoi[s] for s in tmp.mindstate])
-            perm_seq = np.random.permutation(ms_seq)
-            _, pmat = transition_matrix(perm_seq)
-            # convert to numpy
-            p = np.full((5,5), np.nan)
-            for i in pmat.index:
-                for j in pmat.columns:
-                    p[i-1, j-1] = pmat.loc[i,j]
-            perm_mats[subtype].append(p)
-    # average across subjects within each group
-    for grp in groups:
-        if len(perm_mats[grp]) == 0:
-            continue
-        avg_null = np.nanmean(np.stack(perm_mats[grp]), axis=0)
-        # collect into null_dist
+for _ in tqdm(range(n_perm), desc='Permuting'):
+    # collect permuted rows
+    perm_rows = []
+    for ch in chunks:
+        seq = ch['seq']
+        pseq = np.random.permutation(seq)
+        Pp, cps = compute_chunk_probs(pseq)
         for i in range(5):
-            for j in range(5):
-                null_dist[grp][(i,j)].append(avg_null[i,j])
+            prow = {
+                'subtype': ch['subtype'],
+                'mindstate': dic_itos[i+1],
+                'count': cps[i]
+            }
+            for k,col in enumerate(prob_cols):
+                prow[col] = Pp[i,k]
+            perm_rows.append(prow)
+    df_perm = pd.DataFrame(perm_rows)
+    av_perm = (
+        df_perm
+        .groupby(['subtype','mindstate'],as_index=False)
+        .apply(weighted_mean)
+        .reset_index()
+        )
+    # record each cell
+    for grp in groups:
+        sub = av_perm[av_perm.subtype==grp].set_index('mindstate')[prob_cols]
+        for i,row in enumerate(['ON','MW_I','MB','MW_H','FORGOT']):
+            for j,col in enumerate(prob_cols):
+                null_dist[grp][(i,j)].append(sub.loc[row,col])
 
-# Compute thresholds (upper bound of 95% CI)
+# --- 4. Compute thresholds at 1-alpha upper percentile
 thresholds = {grp: np.zeros((5,5)) for grp in groups}
 for grp in groups:
-    for i in range(5):
-        for j in range(5):
-            vals = np.array(null_dist[grp][(i,j)])
-            # 97.5 percentile
-            thresholds[grp][i,j] = np.nanpercentile(vals, 100 * (1 - alpha))
+    for (i,j), vals in null_dist[grp].items():
+        thresholds[grp][i,j] = np.nanpercentile(vals, 100*(1 - a_alpha))
 
-# Prune individual matrices: set values below group-threshold to zero
-df_pruned = df_transi.copy()
-for idx, row in df_pruned.iterrows():
-    grp = row.subtype
-    i = dic_stoi_2[row.mindstate] - 1
-    for k, col in enumerate(['proba_ON', 'proba_MW', 'proba_MB', 'proba_HALLU', 'proba_FORGOT']):
-        if row[col] < thresholds[grp][i, k]:
-            df_pruned.at[idx, col] = 0.0
+# --- 5. Prune actual matrices
+dict_pruned = {}
+for grp, mat in dict_actual.items():
+    Pr = mat.copy().to_numpy()
+    thr = thresholds[grp]
+    mask = Pr < thr
+    Pr[mask] = 0.0
+    dict_pruned[grp] = pd.DataFrame(Pr, index=mat.index, columns=mat.columns)
 
-# Now you can recompute group averages on df_pruned if desired
-av_pruned = df_pruned.groupby(['subtype', 'mindstate'], as_index=False)[
-    ['proba_ON','proba_MW','proba_MB','proba_HALLU','proba_FORGOT']
-    ].mean()
-# reorder and index as before
-order = ["ON","MW","MB","HA","FG"]
-av_pruned['mindstate'] = pd.Categorical(av_pruned['mindstate'], categories=order, ordered=True)
-av_pruned = av_pruned.sort_values('mindstate').set_index('mindstate')
-transi_n1_pruned = av_pruned[av_pruned.subtype == 'N1'].drop(columns='subtype')
-transi_hs_pruned = av_pruned[av_pruned.subtype == 'HS'].drop(columns='subtype')
+# --- 6. Output
+for grp in groups:
+    print(f"Weighted+pruned transition matrix for {grp}:")
+    print(dict_pruned[grp])
 
 
 # %% Plot TransMat MS
@@ -1590,11 +1714,11 @@ f, (ax, cbar_ax) = plt.subplots(
     figsize=(6, 6)
     )
 sns.heatmap(
-    transi_n1_pruned, 
+    transi_n1, 
     ax=ax, 
     square=False, 
     vmin=0, 
-    vmax=.6, 
+    vmax=1, 
     cbar=True,
     cbar_ax=cbar_ax, 
     cmap='Purples', 
@@ -1606,9 +1730,9 @@ sns.heatmap(
         "fraction": 0.1,
         "label": "Transition probability"}
     )
-ax.set_xlabel("To Mental State", font=bold_font, fontsize=12)
+ax.set_xlabel("To Mental State", font=bold_font, fontsize=14)
 ax.xaxis.tick_top()
-ax.set_ylabel("From Mental State", font=bold_font, fontsize=12)
+ax.set_ylabel("From Mental State", font=bold_font, fontsize=14)
 ax.xaxis.set_label_position('top')
 
 
@@ -1628,7 +1752,7 @@ ax.set_yticks(
 f.tight_layout()
 
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_pruned_mwmb_ms_nt1.png"
+    behavpath, "NT1_CTL", "transimat_w_mwmb_ms_nt1.png"
     ), dpi=300)
 
 f, (ax, cbar_ax) = plt.subplots(
@@ -1637,11 +1761,11 @@ f, (ax, cbar_ax) = plt.subplots(
     figsize=(6, 6)
     )
 sns.heatmap(
-    transi_hs_pruned, 
+    transi_hs, 
     ax=ax, 
     square=False, 
     vmin=0, 
-    vmax=.6, 
+    vmax=1, 
     cbar=True,
     cbar_ax=cbar_ax, 
     cmap='Purples', 
@@ -1653,9 +1777,9 @@ sns.heatmap(
         "fraction": 0.1,
         "label": "Transition probability"}
     )
-ax.set_xlabel("To Mental State", font=bold_font, fontsize=16)
+ax.set_xlabel("To Mental State", font=bold_font, fontsize=14)
 ax.xaxis.tick_top()
-ax.set_ylabel("From Mental State", font=bold_font, fontsize=16)
+ax.set_ylabel("From Mental State", font=bold_font, fontsize=14)
 ax.xaxis.set_label_position('top')
 
 ax.set_xticks(
@@ -1673,7 +1797,217 @@ ax.set_yticks(
 # ax.set_title("Controls", font = bold_font, fontsize = 14)
 f.tight_layout(pad=1)
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_pruned_mwmb_ctl.png"
+    behavpath, "NT1_CTL", "transimat_w_mwmb_ctl.png"
+    ), dpi=300)
+
+# %% Plot Network 
+
+import networkx as nx
+
+# Assumes you have transi_n1 and transi_hs as pandas DataFrames
+# indexed and columned by state labels (e.g. ['ON','MW','MB','HA','FG']),
+# with cells giving transition probabilities.
+
+# Define a color palette for mindstates: ON, MW, MB, HA, FG
+states = ['ON', 'MW', 'MB', 'HA', 'FG']
+color_map = {state: color for state, color in zip(states, ms_palette)}
+
+# Custom positions: ON in center, MW/MB to left, HA/FG to right
+def get_positions():
+    """Return fixed positions for each state for network layout."""
+    return {
+        'ON': (0.0, 0.0),
+        'MW': (-1.0, 0.5),
+        'MB': (-1.0, -0.5),
+        'HA': (1.0, 0.5),
+        'FG': (1.0, -0.5)
+    }
+
+# Plotting function
+def plot_transition_network(P, title, output_path, scale=5):
+    """
+    P           : pandas DataFrame of shape (n,n) with index & columns = state labels
+    title       : str, title of the plot
+    output_path : str, file path to save the figure
+    scale       : float, multiplier for edge widths
+    """
+    # Build directed graph
+    G = nx.DiGraph()
+    for state in states:
+        G.add_node(state)
+    for src in states:
+        for dst in states:
+            w = P.loc[src, dst]
+            if w > 0:
+                G.add_edge(src, dst, weight=w)
+
+    pos = get_positions()
+    plt.figure(figsize=(8,6))
+    ax = plt.gca()
+
+    # Draw nodes with specified colors
+    nx.draw_networkx_nodes(
+        G, pos,
+        node_size=2000,
+        node_color=[color_map[n] for n in G.nodes()],
+        edgecolors='black',
+        linewidths=1.5,
+        ax=ax
+    )
+    # Draw labels inside nodes
+    nx.draw_networkx_labels(
+        G, pos,
+        font_size=12,
+        font_weight='bold',
+        font_color='white',
+        ax=ax
+    )
+
+    # Draw edges with widths proportional to weight and slight curvature
+    for u, v, data in G.edges(data=True):
+        nx.draw_networkx_edges(
+            G, pos,
+            edgelist=[(u, v)],
+            width=data['weight'] * scale,
+            arrowstyle='->',
+            arrowsize=15,
+            connectionstyle='arc3,rad=0.2',
+            ax=ax
+        )
+
+    # Edge labels with white bbox to avoid overlapping arrows
+    edge_labels = {(u, v): f"{data['weight']:.2f}" for u, v, data in G.edges(data=True)}
+    nx.draw_networkx_edge_labels(
+        G, pos,
+        edge_labels=edge_labels,
+        label_pos=0.5,
+        font_color='black',
+        font_size=10,
+        rotate=False,
+        bbox=dict(facecolor='white', edgecolor='none', pad=0.2),
+        ax=ax
+    )
+
+    plt.title(title, fontsize=14, fontweight='bold')
+    plt.axis('off')
+    plt.tight_layout()
+
+    # Save
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    plt.savefig(output_path, dpi=300)
+    plt.close()
+
+# Example usage
+if __name__ == '__main__':
+    import numpy as np
+    outdir = os.path.join(behavpath, 'NT1_CTL')
+
+    plot_transition_network(
+        transi_n1,
+        'Narcolepsy Type 1 Transition Network',
+        os.path.join(outdir, 'trans_net_nt1.png')
+    )
+    plot_transition_network(
+        transi_hs,
+        'Control Transition Network',
+        os.path.join(outdir, 'trans_net_ctl.png')
+    )
+
+
+# %% Plot Pruned Weighted TransMat MS
+
+grid_kws = {"height_ratios": (.9, .05), "hspace": .1}
+
+f, (ax, cbar_ax) = plt.subplots(
+    2, 
+    gridspec_kw=grid_kws,
+    figsize=(6, 6)
+    )
+sns.heatmap(
+    dict_pruned["N1"], 
+    ax=ax, 
+    square=False, 
+    vmin=0, 
+    vmax=1, 
+    cbar=True,
+    cbar_ax=cbar_ax, 
+    cmap='Purples', 
+    annot=True, 
+    annot_kws={"size": 14},
+    fmt='.2f',
+    cbar_kws={
+        "orientation": "horizontal", 
+        "fraction": 0.1,
+        "label": "Transition probability"}
+    )
+ax.set_xlabel("To Mental State", font=bold_font, fontsize=14)
+ax.xaxis.tick_top()
+ax.set_ylabel("From Mental State", font=bold_font, fontsize=14)
+ax.xaxis.set_label_position('top')
+
+
+ax.set_xticks(
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HA', 'FG'],
+    font = font, 
+    fontsize = 14
+    )
+ax.set_yticks(
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HALLU', 'FG'],
+    font = font, 
+    fontsize = 14
+    )
+# ax.set_title("Narcolepsy Type 1", font = bold_font, fontsize = 14)
+f.tight_layout()
+
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "transmat_pruned_weighted_nt1.png"
+    ), dpi=300)
+
+f, (ax, cbar_ax) = plt.subplots(
+    2, 
+    gridspec_kw=grid_kws,
+    figsize=(6, 6)
+    )
+sns.heatmap(
+    dict_pruned["HS"], 
+    ax=ax, 
+    square=False, 
+    vmin=0, 
+    vmax=1, 
+    cbar=True,
+    cbar_ax=cbar_ax, 
+    cmap='Purples', 
+    annot=True, 
+    annot_kws={"size": 14},
+    fmt='.2f',
+    cbar_kws={
+        "orientation": "horizontal", 
+        "fraction": 0.1,
+        "label": "Transition probability"}
+    )
+ax.set_xlabel("To Mental State", font=bold_font, fontsize=14)
+ax.xaxis.tick_top()
+ax.set_ylabel("From Mental State", font=bold_font, fontsize=14)
+ax.xaxis.set_label_position('top')
+
+ax.set_xticks(
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HA', 'FG'],
+    font = font, 
+    fontsize = 14
+    )
+ax.set_yticks(
+    np.linspace(0.5,4.5,5),
+    ['ON', 'MW', 'MB', 'HA', 'FG'],
+    font = font, 
+    fontsize = 14
+    )
+# ax.set_title("Controls", font = bold_font, fontsize = 14)
+f.tight_layout(pad=1)
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "transmat_pruned_weighted_ctl.png"
     ), dpi=300)
 
 # %% Compute TransMat Sleepi
@@ -1729,6 +2063,86 @@ transi_sleepi_hs = av_transi_sleepi.loc[av_transi_sleepi.subtype=="HS"]
 transi_sleepi_n1.drop(columns="subtype", inplace=True)
 transi_sleepi_hs.drop(columns="subtype", inplace=True)
 
+# %% Compute Weighted TransMat Sleepi
+
+d_states = list(range(1, 10))
+n_states = len(d_states)
+
+# Columns for accumulation
+coi = [
+    'sub_id', 'subtype', 'daytime', 'sleepiness', 'count',
+    ] + [f'proba_{s}' for s in d_states]
+thisdic = {c: [] for c in coi}
+
+# Helper to compute raw counts and probabilities for a sequence of states
+def compute_probs(seq, n_states):
+    # seq: zero-based indices array
+    C = np.zeros((n_states, n_states), dtype=float)
+    for t in range(len(seq) - 1):
+        i, j = seq[t], seq[t+1]
+        C[i, j] += 1
+    # row sums and avoid zeros
+    row_sums = C.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1.0
+    P = C / row_sums
+    counts = row_sums.flatten().astype(int)
+    return P, counts
+
+# Loop through subjects and daytime chunks
+for sub_id in sub_df.sub_id.unique():
+    subdf = sub_df[sub_df.sub_id == sub_id]
+    subtype = subdf.subtype.iloc[0]
+    for daytime in ['AM', 'PM']:
+        chunk = subdf[subdf.daytime == daytime]
+        if chunk.shape[0] < 2:
+            continue
+        # actual sleepiness values (1..9) to zero-based indices
+        seq = chunk.sleepiness.to_numpy() - 1
+        P_chunk, counts = compute_probs(seq.astype(int), n_states)
+        # record each origin state
+        for i in range(n_states):
+            thisdic['sub_id'].append(sub_id)
+            thisdic['subtype'].append(subtype)
+            thisdic['daytime'].append(daytime)
+            thisdic['sleepiness'].append(i + 1)
+            thisdic['count'].append(counts[i])
+            for j in range(n_states):
+                thisdic[f'proba_{j+1}'].append(P_chunk[i, j])
+
+# Build DataFrame of all chunks
+df_transi_sleepi = pd.DataFrame.from_dict(thisdic)
+
+# Define weighted mean aggregator
+prob_cols = [f'proba_{s}' for s in d_states]
+def weighted_mean(group):
+    w = group['count'].to_numpy()
+    return pd.Series({col: np.average(group[col], weights=w) for col in prob_cols})
+
+# Compute weighted averages per subtype and sleepiness
+av_transi_sleepi_w = (
+    df_transi_sleepi
+    .groupby(['subtype', 'sleepiness'], as_index=False)
+    .apply(weighted_mean)
+    .reset_index()
+    )
+
+# Order sleepiness and pivot into matrices per subtype
+av_transi_sleepi_w['sleepiness'] = av_transi_sleepi_w['sleepiness'].astype(int)
+av_transi_sleepi_w = av_transi_sleepi_w.sort_values(['subtype', 'sleepiness']).reset_index(drop=True)
+
+# Extract per-group transition matrices
+dict_sleepi = {}
+for grp in av_transi_sleepi_w.subtype.unique():
+    tmp = av_transi_sleepi_w[av_transi_sleepi_w.subtype == grp]
+    mat = tmp.set_index('sleepiness')[prob_cols]
+    dict_sleepi[grp] = mat
+
+# Example: print resulting weighted matrices
+for grp, mat in dict_sleepi.items():
+    print(f"Weighted sleepiness transition matrix for {grp}:")
+    print(mat)
+
+
 # %% Plot TransMat Sleepi
 
 grid_kws = {"height_ratios": (.9, .05), "hspace": .1}
@@ -1739,7 +2153,7 @@ f, (ax, cbar_ax) = plt.subplots(
     figsize=(6, 6)
     )
 sns.heatmap(
-    transi_sleepi_n1, 
+    dict_sleepi['N1'], 
     ax=ax, 
     square=False, 
     vmin=0, 
@@ -1775,7 +2189,7 @@ ax.set_yticks(
 ax.set_title("Narcolepsy Type 1", font = bold_font, fontsize = 14)
 f.tight_layout()
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_sleepiness_nt1.png"
+    behavpath, "NT1_CTL", "transimat_weighted_sleepiness_nt1.png"
     ), dpi=300)
 
 f, (ax, cbar_ax) = plt.subplots(
@@ -1784,7 +2198,7 @@ f, (ax, cbar_ax) = plt.subplots(
     figsize=(6, 6)
     )
 sns.heatmap(
-    transi_sleepi_hs, 
+    dict_sleepi['HS'], 
     ax=ax, 
     square=False, 
     vmin=0, 
@@ -1820,7 +2234,7 @@ ax.set_yticks(
 ax.set_title("Controls", font = bold_font, fontsize = 14)
 f.tight_layout()
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_sleepiness_ctl.png"
+    behavpath, "NT1_CTL", "transimat_weighted_sleepiness_ctl.png"
     ), dpi=300)
 
 # %% Entropy Sleepi

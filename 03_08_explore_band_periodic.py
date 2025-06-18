@@ -55,6 +55,7 @@ cols_power = [
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 epochs = mne.read_epochs(files[0], preload = True)
 epochs.pick('eeg')
+epochs.drop_channels(['TP9', 'TP10'])
 
 info = epochs.info
 channel_order = np.array(epochs.ch_names)
@@ -69,54 +70,73 @@ mean_df = df.groupby(
     as_index=False
     ).mean()
 
+this_df = df.loc[df.subtype!="HI"]
+
 # %% Plotting 
 
 subtypes = ["HS", "N1", "HI"]
+power_types = ["abs", "rel"]
+bands = ["delta", "theta", "alpha", "beta", "gamma"]
 
-for feature in cols_power :
-    fig, ax = plt.subplots(
-        nrows = 1, ncols = len(subtypes), figsize = (16, 4), layout = 'tight')
-    columns = [feature, "channel"]
+for power_type in power_types :
     
-    vmin = df[columns].groupby(
-        'channel', as_index = False).mean().min()[feature]
-    vmax = df[columns].groupby(
-        'channel', as_index = False).mean().max()[feature]
+    fig, axs = plt.subplots(
+        nrows = len(subtypes), 
+        ncols = len(bands), 
+        figsize = (16, 6), 
+        layout = 'tight'
+        )
     
-    for i_st, subtype in enumerate(subtypes) :
+    for i_b, band in enumerate(bands) :
         
-        temp_values = df[columns].loc[
-            (df.subtype == subtype)
-            ]
+        feature = f"{power_type}_{band}"
         
-        temp_values = temp_values.groupby('channel', as_index = False).mean()
-        temp_values['channel'] = pd.Categorical(
-            temp_values['channel'], 
-            categories=channel_order, 
-            ordered=True
-            )
-        df_sorted = temp_values.sort_values('channel')
-
-        values = df_sorted[feature].to_numpy()
+        columns = [feature, "channel"]
+        
+        vmin = df[columns].groupby(
+            'channel', as_index = False).mean().min()[feature]
+        vmax = df[columns].groupby(
+            'channel', as_index = False).mean().max()[feature]
+        
+        for i_st, subtype in enumerate(subtypes) :
+            ax = axs[i_st]
+            
+            temp_values = df[columns].loc[
+                (df.subtype == subtype)
+                ]
+            
+            temp_values = temp_values.groupby('channel', as_index = False).mean()
+            temp_values['channel'] = pd.Categorical(
+                temp_values['channel'], 
+                categories=channel_order, 
+                ordered=True
+                )
+            df_sorted = temp_values.sort_values('channel')
     
-        divider = make_axes_locatable(ax[i_st],)
-        cax = divider.append_axes("right", size = "5%", pad=0.05)
-        im, cm = mne.viz.plot_topomap(
-            data = values,
-            pos = info,
-            axes = ax[i_st],
-            contours = 2,
-            cmap = "Purples",
-            vlim = (vmin, vmax)
-            )
-        fig.colorbar(im, cax = cax, orientation = 'vertical')
-        ax[i_st].set_title(f"{subtype}", fontweight = "bold")
-    
-    fig.suptitle(f"{feature}\n", 
-             fontsize = "xx-large", 
-             fontweight = "bold")   
-    
-    plt.show()  
+            values = df_sorted[feature].to_numpy()
+        
+            divider = make_axes_locatable(ax[i_b],)
+            cax = divider.append_axes("right", size = "5%", pad=0.05)
+            im, cm = mne.viz.plot_topomap(
+                data = values,
+                pos = info,
+                axes = ax[i_b],
+                contours = 2,
+                cmap = "Purples",
+                vlim = (vmin, vmax)
+                )
+            fig.colorbar(im, cax = cax, orientation = 'vertical')
+            ax[i_b].set_title(
+                f"{subtype} | {power_type}_{band}", 
+                fontweight = "bold", 
+                fontsize = 10
+                ) 
+        
+        plt.show()  
+    fig.tight_layout()
+    plt.savefig(os.path.join(
+        bandpowerPath, "figs", f"{power_type}_across_subtype.png"
+        ), dpi = 300)
 
 # %% ME - Subtype LME
 
@@ -124,82 +144,105 @@ mean_df = df.groupby(
     ['sub_id', 'subtype', 'channel', 'mindstate'], 
     as_index = False).mean()
 
-interest = 'rel_alpha'
+# interest = 'rel_alpha'
 fdr_corrected = 0
-
-for interest in cols_power :
-    model = f"{interest} ~ C(subtype, Treatment('HS'))" 
     
-    fig, ax = plt.subplots(
-        nrows = 1, ncols = 2, figsize = (8, 4))
-    for i, subtype in enumerate(["N1", "HI"]):
-        temp_tval = []; temp_pval = []; chan_l = []
-        cond_df = mean_df.loc[mean_df.subtype.isin(['HS', subtype])]
-        for chan in channels :
-            subdf = cond_df[
-                ['sub_id', 'subtype', 'channel', f'{interest}']
-                ].loc[(cond_df.channel == chan)].dropna()
-            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
-            mdf = md.fit()
-            temp_tval.append(mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
-            temp_pval.append(mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"])
-            chan_l.append(chan)
+for i_subtype, subtype in enumerate(["N1", "HI"]):
+    
+    fig, axs = plt.subplots(
+        nrows = len(power_types), 
+        ncols = len(bands), 
+        figsize = (12, 5)
+        )
+    
+    for i_pt, power_type in enumerate(power_types) :
+        ax = axs[i_pt]
+        for i_b, band in enumerate(bands) :
             
-        if np.any(np.isnan(temp_tval)) :
-            temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
-             
-        if fdr_corrected :
-            _, corrected_pval = fdrcorrection(temp_pval)
-            display_pval = corrected_pval
-        else : 
-            display_pval = temp_pval
+            interest = f"{power_type}_{band}"
+            model = f"{interest} ~ sleepiness + C(subtype, Treatment('HS'))" 
+    
+            temp_tval = []; temp_pval = []; chan_l = []
+            cond_df = df.loc[df.subtype.isin(['HS', subtype])]
+            for chan in channels :
+                subdf = cond_df[
+                    ['sub_id', 'subtype', 'channel', 'sleepiness', f'{interest}']
+                    ].loc[(cond_df.channel == chan)].dropna()
+                md = smf.mixedlm(
+                    model, subdf, groups = subdf['sub_id'], missing = 'omit'
+                    )
+                mdf = md.fit()
+                temp_tval.append(
+                    mdf.tvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"]
+                    )
+                temp_pval.append(
+                    mdf.pvalues[f"C(subtype, Treatment('HS'))[T.{subtype}]"]
+                    )
+                chan_l.append(chan)
+                
+            if np.any(np.isnan(temp_tval)) :
+                temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(
+                    temp_tval
+                    )
+                 
+            if fdr_corrected :
+                _, corrected_pval = fdrcorrection(temp_pval)
+                display_pval = corrected_pval
+            else : 
+                display_pval = temp_pval
+            
+            divider = make_axes_locatable(ax[i_b])
+            cax = divider.append_axes("right", size = "5%", pad=0.05)
+            im, cm = mne.viz.plot_topomap(
+                data = temp_tval,
+                pos = epochs.info,
+                axes = ax[i_b],
+                contours = 3,
+                mask = np.asarray(display_pval) <= 0.05,
+                mask_params = dict(
+                    marker='o', 
+                    markerfacecolor='w', 
+                    markeredgecolor='k',
+                    linewidth=0, 
+                    markersize=6
+                    ),
+                cmap = "coolwarm",
+                # vlim = (
+                #     np.percentile(temp_tval, 5), 
+                #     np.percentile(temp_tval, 95)
+                #     )
+                )
+            fig.colorbar(im, cax = cax, orientation = 'vertical')
         
-        divider = make_axes_locatable(ax[i])
-        cax = divider.append_axes("right", size = "5%", pad=0.05)
-        im, cm = mne.viz.plot_topomap(
-            data = temp_tval,
-            pos = epochs.info,
-            axes = ax[i],
-            contours = 3,
-            mask = np.asarray(display_pval) <= 0.05,
-            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                        linewidth=0, markersize=6),
-            cmap = "viridis",
-            vlim = (np.percentile(temp_tval, 5), np.percentile(temp_tval, 95))
-            )
-        fig.colorbar(im, cax = cax, orientation = 'vertical')
-    
-        ax[i].set_title(f"{subtype} > HS", font = bold_font, fontsize=12)
-    fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
-    fig.tight_layout(pad = 2)
-    
-# %% MS LME SUBTYPE
+            ax[i_b].set_title(f"{interest}", font = bold_font, fontsize=12)
+        fig.suptitle(f"{subtype} > HS", font = bold_font, fontsize=16)
+        fig.tight_layout()
+        
+    plt.savefig(os.path.join(
+        bandpowerPath, "figs", f"{subtype}_vs_HS_sleepi_cor.png"
+        ), dpi=300)
 
-investigate_st = "N1"
-
-mean_df = df.groupby(
-    ['sub_id', 'subtype', 'channel', 'mindstate'], 
-    as_index = False).mean()
-n1_df = mean_df.loc[mean_df.subtype==investigate_st]
+# %% ME - MS LME
 
 fdr_corrected = 0
 
 for interest in cols_power :
-    model = f"{interest} ~ C(mindstate, Treatment('ON'))" 
-    fig, ax = plt.subplots(
-        nrows = 1, ncols = 3, figsize = (8, 4))
+    model = f"{interest} ~ C(mindstate, Treatment('HALLU'))" 
     
-    for i, mindstate in enumerate(["HALLU", "MW", "MB"]):
+    fig, ax = plt.subplots(
+        nrows = 1, ncols = 4, figsize = (10, 3))
+    for i, ms in enumerate(["ON", "MW", "MB", "FORGOT"]):
+        model = f"{interest} ~ C(mindstate, Treatment('{ms}'))" 
         temp_tval = []; temp_pval = []; chan_l = []
-        cond_df = n1_df.loc[n1_df.mindstate.isin(['ON', mindstate])]
+        cond_df = this_df.loc[this_df.mindstate.isin(['HALLU', ms])]
         for chan in channels :
             subdf = cond_df[
                 ['sub_id', 'mindstate', 'channel', f'{interest}']
                 ].loc[(cond_df.channel == chan)].dropna()
             md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
             mdf = md.fit()
-            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
-            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('ON'))[T.{mindstate}]"])
+            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('{ms}'))[T.HALLU]"])
+            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('{ms}'))[T.HALLU]"])
             chan_l.append(chan)
             
         if np.any(np.isnan(temp_tval)) :
@@ -226,7 +269,156 @@ for interest in cols_power :
             )
         fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-        ax[i].set_title(f"{mindstate} > ON", font = bold_font, fontsize=12)
+        ax[i].set_title(f"HALLU > {ms}", font = bold_font, fontsize=12)
     fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
     fig.tight_layout(pad = 2)
+    plt.savefig(os.path.join(
+        bandpowerPath, "figs", f"{interest}_ME_mentalstate_compared_to_hallu.png"
+        ), dpi=300)
+    
+# %% MS LME SUBTYPE
+
+investigate_st = "HI"
+
+n1_df = df.loc[df.subtype==investigate_st]
+
+fdr_corrected = 0
+
+for interest in cols_power :
+    model = f"{interest} ~ sleepiness + C(mindstate, Treatment('MW'))" 
+    fig, ax = plt.subplots(
+        nrows = 1, ncols = 4, figsize = (10, 3))
+    
+    for i, mindstate in enumerate(["ON", "MB", "HALLU"]):
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = n1_df.loc[n1_df.mindstate.isin(['MW', mindstate])]
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'mindstate', 'channel', 'sleepiness', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
+            mdf = md.fit()
+            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('MW'))[T.{mindstate}]"])
+            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('MW'))[T.{mindstate}]"])
+            chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(temp_tval)
+             
+        if fdr_corrected :
+            _, corrected_pval = fdrcorrection(temp_pval)
+            display_pval = corrected_pval
+        else : 
+            display_pval = temp_pval
+        
+        divider = make_axes_locatable(ax[i])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = -np.asarray(temp_tval),
+            pos = epochs.info,
+            axes = ax[i],
+            contours = 3,
+            mask = np.asarray(display_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=6),
+            cmap = "coolwarm",
+            # vlim = (np.percentile(temp_tval, 5), np.percentile(temp_tval, 95))
+            )
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        ax[i].set_title(f"MW > {mindstate}", font = bold_font, fontsize=12)
+    fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
+    fig.tight_layout(pad = 2)
+    plt.savefig(os.path.join(
+        bandpowerPath, "figs", f"{interest}_{investigate_st}_compared_to_MW_sleepi_corr.png"
+        ), 
+                dpi=300)
+    
+# %% MS LME SUBTYPE – common colorbar per feature
+
+investigate_st = "N1"
+n1_df = df[df.subtype == investigate_st]
+fdr_corrected = False
+mindstates = ["ON", "MW", "MB", "FORGOT"]
+
+for interest in cols_power:
+    model = f"{interest} ~ C(mindstate, Treatment('HALLU'))"
+
+    # 1) first pass: fit all contrasts, store t- & p-values
+    tvals_dict = {}
+    pvals_dict = {}
+    all_tvals = []
+    for ms in mindstates:
+        temp_tval = []
+        temp_pval = []
+        cond_df = n1_df[n1_df.mindstate.isin(['HALLU', ms])]
+
+        for chan in channels:
+            subdf = (
+                cond_df
+                .loc[cond_df.channel == chan, ['sub_id','mindstate','channel', interest]]
+                .dropna()
+            )
+            md = smf.mixedlm(model, subdf, groups=subdf['sub_id'], missing='omit')
+            mdf = md.fit()
+            term = f"C(mindstate, Treatment('HALLU'))[T.{ms}]"
+
+            if term in mdf.tvalues.index:
+                temp_tval.append(mdf.tvalues[term])
+                temp_pval.append(mdf.pvalues[term])
+            else:
+                temp_tval.append(np.nan)
+                temp_pval.append(1.0)
+
+        # replace any NaN with the row‐mean
+        if np.any(np.isnan(temp_tval)):
+            mean_t = np.nanmean(temp_tval)
+            temp_tval = [mean_t if np.isnan(t) else t for t in temp_tval]
+
+        tvals_dict[ms] = temp_tval
+        pvals_dict[ms] = temp_pval
+        all_tvals.extend(temp_tval)
+
+    # 2) compute common color limits
+    vmin, vmax = np.percentile(all_tvals, [5, 95])
+
+    # 3) now plot with shared vlim
+    fig, axes = plt.subplots(1, len(mindstates), figsize=(10, 3))
+    for i, ms in enumerate(mindstates):
+        temp_tval = tvals_dict[ms]
+        temp_pval = pvals_dict[ms]
+
+        if fdr_corrected:
+            _, disp_pval = fdrcorrection(temp_pval)
+        else:
+            disp_pval = temp_pval
+
+        divider = make_axes_locatable(axes[i])
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+
+        im, _ = mne.viz.plot_topomap(
+            data=-np.asarray(temp_tval),
+            pos=epochs.info,
+            axes=axes[i],
+            contours=3,
+            mask=np.array(disp_pval) <= 0.05,
+            mask_params=dict(
+                marker='o', markerfacecolor='w',
+                markeredgecolor='k', linewidth=0, markersize=6
+            ),
+            cmap="coolwarm",
+            vlim=(vmin, vmax)
+        )
+        fig.colorbar(im, cax=cax, orientation='vertical')
+        axes[i].set_title(f"HA > {ms}", font=bold_font, fontsize=12)
+
+    fig.suptitle(interest, font=bold_font, fontsize=16)
+    fig.tight_layout(pad=2)
+    outpath = os.path.join(
+        bandpowerPath, "figs",
+        f"{interest}_{investigate_st}_compared_to_hallu.png"
+    )
+    plt.savefig(outpath, dpi=300)
+    plt.close(fig)
+
 
