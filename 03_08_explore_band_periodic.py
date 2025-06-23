@@ -63,6 +63,10 @@ channel_order = np.array(epochs.ch_names)
 df = pd.read_csv(os.path.join(bandpowerPath, "bandpower.csv"))
 del df['Unnamed: 0']
 
+subtypes = ["HS", "N1", "HI"]
+power_types = ["abs", "rel"]
+bands = ["delta", "theta", "alpha", "beta", "gamma"]
+
 # %% DataFrame Manipulation
 
 mean_df = df.groupby(
@@ -73,10 +77,6 @@ mean_df = df.groupby(
 this_df = df.loc[df.subtype!="HI"]
 
 # %% Plotting 
-
-subtypes = ["HS", "N1", "HI"]
-power_types = ["abs", "rel"]
-bands = ["delta", "theta", "alpha", "beta", "gamma"]
 
 for power_type in power_types :
     
@@ -140,11 +140,15 @@ for power_type in power_types :
 
 # %% ME - Subtype LME
 
+vlims = {
+    "HI" : (-3, 3),
+    "N1" : (-4, 4)
+    }
+
 mean_df = df.groupby(
     ['sub_id', 'subtype', 'channel', 'mindstate'], 
     as_index = False).mean()
 
-# interest = 'rel_alpha'
 fdr_corrected = 0
     
 for i_subtype, subtype in enumerate(["N1", "HI"]):
@@ -160,7 +164,7 @@ for i_subtype, subtype in enumerate(["N1", "HI"]):
         for i_b, band in enumerate(bands) :
             
             interest = f"{power_type}_{band}"
-            model = f"{interest} ~ sleepiness + C(subtype, Treatment('HS'))" 
+            model = f"{interest} ~ C(subtype, Treatment('HS'))" 
     
             temp_tval = []; temp_pval = []; chan_l = []
             cond_df = df.loc[df.subtype.isin(['HS', subtype])]
@@ -191,8 +195,9 @@ for i_subtype, subtype in enumerate(["N1", "HI"]):
             else : 
                 display_pval = temp_pval
             
-            divider = make_axes_locatable(ax[i_b])
-            cax = divider.append_axes("right", size = "5%", pad=0.05)
+            if i_b == len(bands) - 1 :
+                divider = make_axes_locatable(ax[i_b])
+                cax = divider.append_axes("right", size = "5%", pad=0.05)
             im, cm = mne.viz.plot_topomap(
                 data = temp_tval,
                 pos = epochs.info,
@@ -207,20 +212,92 @@ for i_subtype, subtype in enumerate(["N1", "HI"]):
                     markersize=6
                     ),
                 cmap = "coolwarm",
-                # vlim = (
-                #     np.percentile(temp_tval, 5), 
-                #     np.percentile(temp_tval, 95)
-                #     )
+                vlim = (vlims[subtype])
                 )
-            fig.colorbar(im, cax = cax, orientation = 'vertical')
+            if i_b == len(bands) - 1 :
+                fig.colorbar(im, cax = cax, orientation = 'vertical')
         
             ax[i_b].set_title(f"{interest}", font = bold_font, fontsize=12)
         fig.suptitle(f"{subtype} > HS", font = bold_font, fontsize=16)
         fig.tight_layout()
         
     plt.savefig(os.path.join(
-        bandpowerPath, "figs", f"{subtype}_vs_HS_sleepi_cor.png"
+        bandpowerPath, "figs", f"{subtype}_vs_HS_cor.png"
         ), dpi=300)
+
+# %% NT1 vs HI
+
+fig, axs = plt.subplots(
+    nrows = len(power_types), 
+    ncols = len(bands), 
+    figsize = (12, 5)
+    )
+
+for i_pt, power_type in enumerate(power_types) :
+    ax = axs[i_pt]
+    for i_b, band in enumerate(bands) :
+        
+        interest = f"{power_type}_{band}"
+        model = f"{interest} ~ sleepiness + C(subtype, Treatment('HI'))" 
+
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = df.loc[df.subtype.isin(['HI', 'N1'])]
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'subtype', 'channel', 'sleepiness', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(
+                model, subdf, groups = subdf['sub_id'], missing = 'omit'
+                )
+            mdf = md.fit()
+            temp_tval.append(
+                mdf.tvalues[f"C(subtype, Treatment('HI'))[T.N1]"]
+                )
+            temp_pval.append(
+                mdf.pvalues[f"C(subtype, Treatment('HI'))[T.N1]"]
+                )
+            chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            temp_tval[np.where(np.isnan(temp_tval))[0][0]] = np.nanmean(
+                temp_tval
+                )
+             
+        if fdr_corrected :
+            _, corrected_pval = fdrcorrection(temp_pval)
+            display_pval = corrected_pval
+        else : 
+            display_pval = temp_pval
+        
+        if i_b == len(bands) - 1 :
+            divider = make_axes_locatable(ax[i_b])
+            cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = temp_tval,
+            pos = epochs.info,
+            axes = ax[i_b],
+            contours = 3,
+            mask = np.asarray(display_pval) <= 0.05,
+            mask_params = dict(
+                marker='o', 
+                markerfacecolor='w', 
+                markeredgecolor='k',
+                linewidth=0, 
+                markersize=6
+                ),
+            cmap = "coolwarm",
+            vlim = (-4.8, 4.8)
+            )
+        if i_b == len(bands) - 1 :
+            fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        ax[i_b].set_title(f"{interest}", font = bold_font, fontsize=12)
+    fig.suptitle(f"NT1 > IH", font = bold_font, fontsize=16)
+    fig.tight_layout()
+    
+plt.savefig(os.path.join(
+    bandpowerPath, "figs", f"N1_vs_HI_sleepi_cor.png"
+    ), dpi=300)
 
 # %% ME - MS LME
 

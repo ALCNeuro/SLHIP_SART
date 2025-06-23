@@ -230,7 +230,7 @@ f_names = {
     }
 
 fig, ax = plt.subplots(
-    nrows = 1, ncols = len(features), figsize = (10, 3)
+    nrows = 1, ncols = len(features), figsize = (12, 2.5)
     )
 
 for i, feature in enumerate(features):
@@ -254,8 +254,9 @@ for i, feature in enumerate(features):
          
     _, corrected_pval = fdrcorrection(temp_pval)
     
-    divider = make_axes_locatable(ax[i])
-    cax = divider.append_axes("right", size = "5%", pad=0.05)
+    if i == len(features) - 1 :
+        divider = make_axes_locatable(ax[i])
+        cax = divider.append_axes("right", size = "5%", pad=0.05)
     im, cm = mne.viz.plot_topomap(
         data = temp_tval,
         pos = epochs.info,
@@ -265,12 +266,13 @@ for i, feature in enumerate(features):
         mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
                     linewidth=0, markersize=8),
         cmap = "coolwarm",
-        # vlim = (0, 4.5),
+        vlim = (-4, 4),
         size = 2.5
         )
-    fig.colorbar(im, cax = cax, orientation = 'vertical')
+    if i == len(features) - 1 :
+        fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-    ax[i].set_title(f"{f_names[feature]} N1 > HS", fontweight = "bold", fontsize = 12)
+    # ax[i].set_title(f"{f_names[feature]} N1 > HS", fontweight = "bold", fontsize = 12)
     
     fig.tight_layout()
         
@@ -283,13 +285,13 @@ contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW"), ("ON", "HALLU"), ("ON", "
 
 subtypes = ['HS', 'N1']
 
-fig, ax = plt.subplots(
-    nrows = len(subtypes), 
-    ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
-    figsize = (12,8),
-    )
+
 for i_s, subtype in enumerate(subtypes) :
-    this_ax = ax[i_s]
+    fig, this_ax = plt.subplots(
+        nrows = 1, 
+        ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
+        figsize = (12,2.5),
+        )
     for i_c, contrast in enumerate(contrasts) :
         temp_tval = []; temp_pval = []; chan_l = []
         cond_df = df.loc[
@@ -330,7 +332,7 @@ for i_s, subtype in enumerate(subtypes) :
             contours = 3,
             mask = np.asarray(temp_pval) <= 0.05,
             mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                        linewidth=0, markersize=8),
+                        linewidth=0, markersize=6),
             cmap = "coolwarm",
             vlim = (-2.5, 2.5)
             )
@@ -338,12 +340,11 @@ for i_s, subtype in enumerate(subtypes) :
     
         this_ax[i_c].set_title(f"{contrast[1]} > {contrast[0]}", fontweight = "bold")
 
-fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
-fig.tight_layout()
-figsavename = os.path.join(
-    wavesPath, 'figs',  f'topo_mindstates_subtypes_{interest}.png'
-    # wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_{interest}.png'
-    )
+    # fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
+    fig.tight_layout()
+    figsavename = os.path.join(
+        wavesPath, 'figs',  f'topo_mindstates_subtypes_{interest}_{subtype}.png'
+        )
 plt.savefig(figsavename, dpi = 300)
 
 # %% Diff MS within GROUP vs hallu

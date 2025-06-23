@@ -17,6 +17,7 @@ cleanDataPath = rootpath + "/01_Preproc"
 powerPath = rootpath + "/03_Power"
 wavesPath = rootpath + "/04_Waves"
 complexPath = rootpath + "/08_Complexity_Connectivity"
+burstPath = rootpath + "/09_Bursts"
 
 config_dict = {
       "file_format": "BrainVision",

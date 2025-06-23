@@ -68,6 +68,8 @@ subtype_palette = ["#8d99ae", "#d00000", "#ffb703"]
 
 # %% Script
 
+redo = 1 
+
 # big_dict = {col : [] for col in cols_oi}
 
 if os.path.exists(os.path.join(
@@ -87,7 +89,7 @@ else :
     
         this_savepath = os.path.join(path_usleep, 'yasa', 'features', f"{sub_id}.csv")
         
-        if os.path.exists(this_savepath) : continue
+        if os.path.exists(this_savepath) and not redo : continue
         
         daytime = sub_id[-2:]
         sub_id = sub_id[:-3]
@@ -118,7 +120,7 @@ else :
             if daytime == "AM" :
                 behav_path = behav_paths[0]
             else :
-                daytime = behav_paths[1]
+                behav_path = behav_paths[1]
         mat = loadmat(behav_path)
         df_probe = pd.DataFrame(
             mat['probe_res'], 
