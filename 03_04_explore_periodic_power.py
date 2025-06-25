@@ -21,7 +21,6 @@ from glob import glob
 from scipy.stats import sem
 from scipy.stats import t
 from scipy.ndimage import label
-from highlight_text import ax_text, fig_text
 from matplotlib.font_manager import FontProperties
 from matplotlib import font_manager 
 
@@ -42,14 +41,21 @@ fig_path = os.path.join(periodicPath, "figs")
 
 periodic_files = glob(os.path.join(periodicPath, "*psd.pickle"))
 
-subtypes = ["HS", "N1", "HI"]
+# subtypes = ["HS", "N1", "HI"]
+subtypes = ["HS", "N1"]
 channels = np.array(config.eeg_channels)
-mindstates = ['ON', 'MW', 'HALLU', 'MB']
-palette = ["#8d99ae", "#d00000", "#ffb703"]
+mindstates = ['ON', 'MW', 'MB', 'HALLU', 'FORGOT']
+# palette = ["#8d99ae", "#d00000", "#ffb703"]
+palette = ["#8d99ae", "#d00000"]
 # palette = ["#8d99ae", "#ffb703"]
 freqs = np.linspace(0.5, 40, 159)
 # midline = ["AFz", "Fz", "Cz", "CPz", "Pz", "POz", "Oz", "Iz"]
 midline = ["Fz", "Cz", "Pz", "Oz"]
+
+df = pd.read_csv(os.path.join(
+    periodicPath, "all_periodic_psd.csv"
+    ))
+del df['Unnamed: 0']
 
 # %% Loop
 

@@ -8,17 +8,19 @@ Created on Wed May 21 17:13:31 2025
 03_08_explore_band_periodic.py
 """
 # %% Paths & Packages
+import pickle
+import mne
+import os
 
-import mne, os, numpy as np, pandas as pd
+import pandas as pd
+import numpy as np
 import SLHIP_config_ALC as config
 import matplotlib.pyplot as plt
+import statsmodels.formula.api as smf
 
 from glob import glob
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-
-import statsmodels.formula.api as smf
 from statsmodels.stats.multitest import fdrcorrection
-
 from matplotlib.font_manager import FontProperties
 # font
 personal_path = '/Users/arthurlecoz/Library/Mobile Documents/com~apple~CloudDocs/Desktop/A_Thesis/Others/Fonts/aptos-font'
@@ -67,7 +69,13 @@ subtypes = ["HS", "N1", "HI"]
 power_types = ["abs", "rel"]
 bands = ["delta", "theta", "alpha", "beta", "gamma"]
 
+clus_alpha = 0.05        
+montecarlo_alpha = 0.05  
+min_cluster_size = 2
+
 # %% DataFrame Manipulation
+
+neighbours = config.prepare_neighbours_from_layout(epochs.info)
 
 mean_df = df.groupby(
     ['sub_id', 'subtype', 'channel', 'mindstate'], 
@@ -76,7 +84,7 @@ mean_df = df.groupby(
 
 this_df = df.loc[df.subtype!="HI"]
 
-# %% Plotting 
+# %% Distrib Values 
 
 for power_type in power_types :
     
@@ -144,10 +152,6 @@ vlims = {
     "HI" : (-3, 3),
     "N1" : (-4, 4)
     }
-
-mean_df = df.groupby(
-    ['sub_id', 'subtype', 'channel', 'mindstate'], 
-    as_index = False).mean()
 
 fdr_corrected = 0
     
@@ -238,7 +242,7 @@ for i_pt, power_type in enumerate(power_types) :
     for i_b, band in enumerate(bands) :
         
         interest = f"{power_type}_{band}"
-        model = f"{interest} ~ sleepiness + C(subtype, Treatment('HI'))" 
+        model = f"{interest} ~ C(subtype, Treatment('HI'))" 
 
         temp_tval = []; temp_pval = []; chan_l = []
         cond_df = df.loc[df.subtype.isin(['HI', 'N1'])]
@@ -251,10 +255,10 @@ for i_pt, power_type in enumerate(power_types) :
                 )
             mdf = md.fit()
             temp_tval.append(
-                mdf.tvalues[f"C(subtype, Treatment('HI'))[T.N1]"]
+                mdf.tvalues["C(subtype, Treatment('HI'))[T.N1]"]
                 )
             temp_pval.append(
-                mdf.pvalues[f"C(subtype, Treatment('HI'))[T.N1]"]
+                mdf.pvalues["C(subtype, Treatment('HI'))[T.N1]"]
                 )
             chan_l.append(chan)
             
@@ -292,11 +296,11 @@ for i_pt, power_type in enumerate(power_types) :
             fig.colorbar(im, cax = cax, orientation = 'vertical')
     
         ax[i_b].set_title(f"{interest}", font = bold_font, fontsize=12)
-    fig.suptitle(f"NT1 > IH", font = bold_font, fontsize=16)
+    fig.suptitle("NT1 > IH", font = bold_font, fontsize=16)
     fig.tight_layout()
     
 plt.savefig(os.path.join(
-    bandpowerPath, "figs", f"N1_vs_HI_sleepi_cor.png"
+    bandpowerPath, "figs", "N1_vs_HIcor.png"
     ), dpi=300)
 
 # %% ME - MS LME
@@ -498,4 +502,112 @@ for interest in cols_power:
     plt.savefig(outpath, dpi=300)
     plt.close(fig)
 
+# %% ME Group, Corrected
 
+to_permute = "subtype"
+gp_1 = "HS"
+gp_2 = "N1"
+num_permutations = 200
+
+vlims = (-4, 4)
+
+for i_pt, power_type in enumerate(power_types) :
+    
+    fig, ax = plt.subplots(
+        nrows = 1, 
+        ncols = len(bands), 
+        figsize = (12, 2.5)
+        )
+    
+    for i_b, band in enumerate(bands) :
+        
+        feature = f"{power_type}_{band}"
+        save_fname = os.path.join(
+            bandpowerPath, 
+            "figs", 
+            f"CPerm_{num_permutations}_{power_type}_{band}_ME_Group.pkl"
+            )
+        
+        if os.path.exists(save_fname):
+            print(f"Loading {power_type}_{band}...")
+            out = pd.read_pickle(save_fname)
+            
+            orig_tvals           = out['orig_tvals']
+            significant_clusters = out['significant_clusters']
+        
+        else :
+            print(f"Processing {power_type}_{band}...")
+            interest = f"C(subtype, Treatment('{gp_1}'))[T.{gp_2}]"
+            model = f"{feature} ~ C(subtype, Treatment('{gp_1}'))" 
+            cond_df = df.loc[df.subtype.isin([gp_1, gp_2])]
+            
+            clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
+                cond_df,
+                model, 
+                interest,
+                to_permute,
+                num_permutations,
+                neighbours,     
+                clus_alpha,
+                min_cluster_size,
+                channels,
+                )
+            
+            significant_clusters = config.identify_significant_clusters(
+                clusters_pos, 
+                clusters_neg, 
+                perm_stats_pos, 
+                perm_stats_neg, 
+                montecarlo_alpha,
+                num_permutations
+                )
+            
+            out = {
+                'clusters_pos':            clusters_pos,
+                'clusters_neg':            clusters_neg,
+                'perm_stats_pos':          perm_stats_pos,
+                'perm_stats_neg':          perm_stats_neg,
+                'orig_pvals':              orig_pvals,
+                'orig_tvals':              orig_tvals,
+                'significant_clusters':    significant_clusters
+                }
+            
+            os.makedirs(os.path.dirname(save_fname), exist_ok=True)
+            with open(save_fname, 'wb') as fp:
+                pickle.dump(out, fp)
+            
+        significant_mask = np.zeros(len(channels), dtype=bool)
+        for sign, clust_labels, stat, pval in significant_clusters:
+            for ch in clust_labels:
+                idx = np.where(channels == ch)[0][0]
+                significant_mask[idx] = True
+        
+        if i_b == len(bands) - 1 :
+            divider = make_axes_locatable(ax[i_b])
+            cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = orig_tvals,
+            pos = epochs.info,
+            axes = ax[i_b],
+            contours = 3,
+            mask = significant_mask,
+            mask_params = dict(
+                marker='o', 
+                markerfacecolor='w', 
+                markeredgecolor='k',
+                linewidth=0, 
+                markersize=6
+                ),
+            cmap = "coolwarm",
+            vlim = (-4, 4)
+            )
+        if i_b == len(bands) - 1 :
+            fig.colorbar(im, cax = cax, orientation = 'vertical')
+    
+        ax[i_b].set_title(f"{feature}", font = bold_font, fontsize=12)
+    # fig.suptitle(f"{gp_2}> {gp_1}", font = bold_font, fontsize=16)
+    fig.tight_layout()
+    
+plt.savefig(os.path.join(
+    bandpowerPath, "figs", f"{gp_2}_vs_{gp_1}_cluster_perm_{num_permutations}.png"
+    ), dpi=300)

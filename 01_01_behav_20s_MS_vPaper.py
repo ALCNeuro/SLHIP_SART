@@ -255,7 +255,7 @@ mindstate_percentages = mindstate_counts.div(mindstate_counts.sum(axis=1), axis=
 # subtypes = ['HS', 'N1', 'HI']
 subtypes = ['HS', 'N1']
 kind_thought = list(sub_df.mindstate.unique())
-full_thought = ["ON", "MW", "Distracted", "MB", "Forgot", "Hallucination"]
+full_thought = ["ON", "MW", "MB", "Forgot", "Hallucination"]
 # kind_thought.remove('MISS')  # Remove 'MISS' from the radar plot
 
 max_value = mindstate_percentages.max().max()
@@ -263,7 +263,7 @@ max_value = mindstate_percentages.max().max()
 # Radar plot settings
 colors = {'HS': '#8d99ae', 'N1': '#d00000', 'HI' : '#539F41'}
 
-fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(4, 4), dpi=150)
+fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(3, 3), dpi=150)
 for subtype in subtypes:
     values = mindstate_percentages.loc[subtype, kind_thought].values.tolist()
     values += values[:1]  # to close the radar plot
@@ -402,6 +402,123 @@ plt.tight_layout(pad=2)
 plt.show()
 plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
 
+# %% RadarPlot | Behavioral Per GRP -  MS
+
+radar_palette = ["#FFC000", "#00B050", "#7030A0", "#0070C0", "#000000"]
+
+subtypes = ["HS", "N1"]
+df_rplot = sub_df[[
+    'rt_go', 'std_rtgo', 'miss','false_alarms', 'subtype', 'mindstate', 'sleepiness']
+    ].copy()
+mean_rplot = df_rplot.groupby(['subtype', 'mindstate']).mean()
+
+dic_label = {
+    "ON" : "ON",
+    "MW_I": "MW",
+    "MB": "MB",
+    "MW_H": "HALLU", 
+    "FORGOT": "FORGOT"
+    }
+
+# (2) Choose a padding p = q = 0.1 (so min→0.1, max→0.9). If you want ON to be at ~0.2 instead,
+#     you could set p=0.2 and q=0.1 (or some other pair). Here we’ll do p=q=0.1 for illustration:
+
+p = 0.1
+q = 0.1
+span = 1.0 - p - q   # = 0.8
+
+# Create a new DataFrame “df_padded” that linearly rescales each column from [raw_min,raw_max] → [p,1−q]:
+df_padded = mean_rplot.copy()
+
+for col in df_padded.columns:
+    col_min = mean_rplot[col].min()
+    col_max = mean_rplot[col].max()
+    # Avoid any division‐by‐zero if col_max == col_min (not the case here, but good practice)
+    if col_max == col_min:
+        df_padded[col] = p + span / 2.0   # collapse to midpoint of [p,1−q]
+    else:
+        df_padded[col] = (
+            (mean_rplot[col] - col_min) 
+            / (col_max - col_min) 
+            * span 
+            + p
+        )
+
+# Now, df_padded holds values ∈ [0.1, 0.9] (ON rows are ≈0.1, FORGOT rows ≈0.9).
+# Let’s check quickly:
+print("Original min/max of each column:")
+print(mean_rplot.agg(['min','max']))
+print("\nAfter padding, min/max of each column:")
+print(df_padded.agg(['min','max']))
+
+# (3) Build angles for a 5‐axis radar (and close the loop).
+categories = list(df_padded.columns)
+N = len(categories)
+angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+angles += angles[:1]  # duplicate first angle at end to close the polygon
+
+# (4) Split into five small subplots (1 row × 5 cols), each with its own mindstate in blue,
+#     but also draw the ON‐ and FORGOT‐curves (if you like) in the background as reference.
+
+# Grab the padded‐norm vectors for ON and FORGOT, so we can overlay them on every subplot.
+min_padded = [0.1 for i in range(6)]
+max_padded = [0.9 for i in range(6)]
+
+fig, axes = plt.subplots(
+    nrows = len(subtypes), 
+    ncols = 5, 
+    figsize=(14, 6), 
+    subplot_kw={'projection': 'polar'}
+    )
+
+for idx_st, st in enumerate(subtypes) : 
+    this_df = df_padded.loc[st]
+    axs = axes[idx_st]
+    for ax, mindstate, i in zip(axs, (["ON", "MW_I", "MW_H", "MB", "FORGOT"]), range(5)):
+        
+        this_color = radar_palette[i]
+        # (a) Plot ON (thin dashed gray) and FORGOT (thin dashed gray) as reference
+        ax.plot(angles, min_padded,      linestyle='--', color='gray', linewidth=1)#, label='ON   (≈0.1)')
+        ax.plot(angles, max_padded,  linestyle='--', color='gray', linewidth=1)#, label='FORGOT   (≈0.9)')
+        
+        # (b) Plot this mindstate’s padded values (solid blue):
+        padded_vals = this_df.loc[mindstate].tolist()
+        padded_vals += padded_vals[:1]
+        ax.plot(angles, padded_vals, linewidth=2, label=mindstate, color = subtype_palette[idx_st])
+        ax.fill(angles, padded_vals, alpha=0.3, color = this_color)
+        
+        # (c) Annotate each spoke with its raw (un‐normalized) number:
+        # raw_vals = mean_rplot.loc[mindstate].tolist()
+        # raw_vals += raw_vals[:1]
+        
+        # (d) Tidy up labels & limits:
+        ax.set_xticks(angles[:-1])
+        # ax.set_xticklabels(
+        #     ["RT", "STD RT", "Misses", "False Alarms", "Sleepiness"], 
+        #     font = font, fontsize=10)
+        ax.set_xticklabels([])
+        # Give a bit of radial margin so ON=0.1 and FORGOT=0.9 don't hug the exact center/edge
+        ax.set_ylim(0.0, 1.0)  
+        # If you want any radial ticks visible, you can do something like
+        ax.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])  # keep whichever rings you like
+        ax.set_yticklabels([])      # hide the numeric labels if you prefer
+        ax.set_yticks([])
+        # if not idx_st :
+        #     ax.set_title(dic_label[mindstate], font = bold_font, fontsize=14)
+        # Hide the circular border
+        ax.spines['polar'].set_visible(False)
+        
+        # (Optional) also turn off all radial/grid lines:
+        ax.grid(True)
+        ax.set_ylim(0, .9)
+        
+plt.tight_layout(pad=2)
+plt.show()
+plt.savefig(
+    os.path.join(behavpath, "NT1_CTL", "Grp_RadarPlots_MS_Behav.png"), 
+    dpi=300
+    )
+
 # %% Radar Behav Subtype
 
 group_means = sub_df.groupby('subtype')[[
@@ -414,17 +531,17 @@ for col in df_group.columns:
     df_group[col] = ((df_group[col] - mn) / (mx - mn))*span + p
     
 fig, axes = plt.subplots(
-    nrows = 1, 
-    ncols = 2, 
-    figsize=(5.6, 3), 
+    nrows = 2, 
+    ncols = 1, 
+    figsize=(2.8, 6), 
     subplot_kw={'projection':'polar'}
     )
 
 for i, grp in enumerate(['HS','N1']):
     ax = axes[i]
     # draw ON/FORGET reference exactly the same way...
-    ax.plot(angles, on_padded,      '--', color='gray',   linewidth=1)
-    ax.plot(angles, forgot_padded,  '--', color='gray',   linewidth=1)
+    ax.plot(angles, min_padded,      '--', color='gray',   linewidth=1)
+    ax.plot(angles, max_padded,  '--', color='gray',   linewidth=1)
 
     # draw the group polygon in its own color:
     vals = df_group.loc[grp].tolist() + [df_group.loc[grp].tolist()[0]]
@@ -439,23 +556,23 @@ for i, grp in enumerate(['HS','N1']):
 
     # copy over all of your xtick, yticks, spine, grid, title, etc.
     ax.set_xticks(angles[:-1])
+    # ax.set_xticklabels(
+    #     ['RT','STD RT','Misses','False Alarms','Sleepiness'], 
+    #     font = font, 
+    #     fontsize = 10
+    #     )
     ax.set_xticklabels(
-        ['RT','STD RT','Misses','False Alarms','Sleepiness'], 
-        font = font, 
-        fontsize = 10
+        []
         )
     ax.set_ylim(0,.9)
     ax.set_yticks([])
     ax.spines['polar'].set_visible(False)
     ax.grid(True)
-    ax.set_title(grp, font = bold_font, fontsize=14)
-    
+    # ax.set_title(grp, font = bold_font, fontsize=14)
+plt.tight_layout(pad=2)
 # fig.tight_layout()
-plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_ST_Behav.png"), dpi=300)
+plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_ST_Behav_noticks.png"), dpi=300)
     
-
-
-
 
 # %% RadarPlot | Behavioral Diff MS
 
@@ -662,7 +779,7 @@ sns.stripplot(
     palette = subtype_palette
     )
 
-ax.set_ylabel('Pourcentage %', size = 18, font = bold_font)
+ax.set_ylabel('Percentage %', size = 18, font = bold_font)
 ax.set_xlabel('Mindstate', size = 18, font = bold_font)
 ax.set_ylim(0, 1)
 ax.set_xticks(
@@ -681,23 +798,6 @@ sns.despine()
 fig.tight_layout()
 
 plt.savefig(os.path.join(behavpath, "NT1_CTL", "point_strip_per_mindstates_by_subtype.png"), dpi=200)
-
-# %% Stats
-
-temp_df = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
-    ['sub_id', 'subtype', 'mindstate'], as_index = False
-    ).mean()
-temp_df = temp_df.loc[temp_df.mindstate.isin(order)]
-
-model_formula = 'percentage ~ C(mindstate, Treatment("FORGOT")) * C(subtype, Treatment("HS"))'
-model = smf.mixedlm(
-    model_formula, 
-    df_mindstate, 
-    groups=df_mindstate['sub_id'], 
-    missing = 'omit'
-    )
-model_result = model.fit()
-print(model_result.summary())
 
 # %% Ready figure % Sleepi
 
@@ -791,65 +891,6 @@ plt.savefig(
     os.path.join(behavpath, 
                  "NT1_CTL", 
                  "point_strip_sleepiness_ms_subtype.png"), 
-    dpi=200 
-    )
-
-# %% Per Sleepiness [MS Diff]
- 
-data = df_sleepi.copy().drop(columns=["subtype", "daytime"]).groupby(
-    ["sub_id", "mindstate", "sleepiness"], as_index=False
-    ).mean()
-
-x = 'sleepiness'
-order = np.linspace(1, 9, 9)
-y = 'percentage'
-hue = 'mindstate'
-hue_order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
-
-fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (7, 4))
-
-sns.barplot(
-    data = data, 
-    x = x,
-    y = y,
-    hue = hue,
-    order = order,
-    hue_order = hue_order,
-    errorbar='se', 
-    orient=None, 
-    palette=ms_palette, 
-    fill=False,
-    hue_norm=None, 
-    width=0.8, 
-    dodge='auto', 
-    gap=0.1, 
-    capsize=0.05, 
-    ax=ax,
-    legend=None
-    )
-
-ax.set_yticks(
-    ticks = np.linspace(0, .6, 7), 
-    labels = np.linspace(0, 60, 7).astype(int), 
-    font = font, 
-    size = 10)
-ax.set_ylim(0, .6)
-ax.set_ylabel("Percentage %", font = bold_font, size = 14)
-ax.set_xticks(
-    ticks = np.linspace(0, 8, 9), 
-    labels = np.linspace(1, 9, 9).astype(int), 
-    size = 14,
-    font = font
-    )
-ax.set_xlabel("Sleepiness", font = bold_font, size = 14)
-ax.tick_params(axis='both', labelsize=12)
-sns.despine()
-
-fig.tight_layout()
-plt.savefig(
-    os.path.join(behavpath, 
-                 "NT1_CTL", 
-                 "persleepiness_ms_only.png"), 
     dpi=200 
     )
 
@@ -977,18 +1018,6 @@ for i, ms in enumerate(['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']) :
                      f"per_sleepi_Group_perMS_{ms}.png"), 
         dpi=300 
         )
-
-# %% LME Sleepiness
-
-"""I should loop around 1 to 9 and compute the corrected p_vals then print df"""
-
-data['sleepiness'] = pd.Categorical(data['sleepiness'], ordered=True)
-
-model_formula = 'percentage ~ C(sleepiness, Treatment(9)) * C(subtype, Treatment("HS"))'
-model = smf.mixedlm(model_formula, data=data, groups = data['sub_id'])
-result = model.fit()
-
-print(result.summary())
 
 # %% Behav Joint [MSxST diff]
 
@@ -1275,7 +1304,7 @@ for feat in feats :
         ax=ax
         )
     sns.despine()
-    
+
     ax.set_xticks(
         np.linspace(-0.33, 0.33, len(hue_order)),
         ['ON', 'MW', 'MB', 'HA', 'FGT'],
@@ -1300,29 +1329,272 @@ for feat in feats :
         behavpath, "NT1_CTL", f"{feat}_boxplot_msonly.png"
         ), dpi=300)
     
+# %% Behaviour | ME MS + Stripp Group
 
-# %% Separate plots [ST diff]
 feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
+
+df_grouped = (sub_df
+    [['sub_id','subtype','rt_go','rt_nogo','std_rtgo','hits','miss',
+      'correct_rejections','false_alarms','mindstate','sleepiness']]
+    .groupby(['sub_id','subtype','mindstate'], as_index=False)
+    .mean())
+
+minmax = {
+    "sleepiness": [1, 9],
+    "miss": [0, 100],
+    "false_alarms": [0, 100],
+    "rt_go": [0.2, 0.8],
+    "std_rtgo": [0, 0.3]
+}
+labels = {
+    "sleepiness": "Sleepiness",
+    "miss": "Misses (%)",
+    "false_alarms": "False Alarms (%)",
+    "rt_go": "Reaction Time (s)",
+    "std_rtgo": "SD of RT (s)"
+}
+ticks = {
+    "sleepiness": [np.linspace(1,9,9), np.arange(1,10)],
+    "miss": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
+    "false_alarms": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
+    "rt_go": [np.linspace(.2,.8,7), np.round(np.linspace(.2,.8,7),2)],
+    "std_rtgo": [np.linspace(0,.3,4), np.round(np.linspace(0,.3,4),2)]
+}
+
+mind_order = ['ON','MW_I','MB','MW_H','FORGOT']
+group_palette = subtype_palette      
+box_color = 'gray'                   
+
+for feat in feats:
+    fig, ax = plt.subplots(figsize=(5,4))
+
+    sns.boxplot(
+        data=df_grouped,
+        x='mindstate', y=feat,
+        order=mind_order,
+        palette=['k' for i in range(len(mind_order))],
+        width=0.18,
+        fliersize=0,
+        linewidth = 2,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
+    
+    sns.violinplot(
+        data=df_grouped,
+        x='mindstate', y=feat,
+        hue='subtype', hue_order=['HS','N1'],
+        palette=group_palette,
+        # linecolor="w",
+        gap=.6, 
+        split=True,
+        alpha=0.6,
+        inner=None,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
+
+    # sns.despine()
+    # ax.set_xlabel("Mindstate", fontsize=14, fontweight='bold')
+    # ax.set_xticks(
+    #     np.linspace(0, len(order)-1, len(order)),
+    #     ['ON','MW','MB','HA','FG'], 
+    #     font = font,
+    #     fontsize=12
+    #     )
+    
+    sns.despine(bottom=True)
+    ax.set_xlabel("")
+    ax.set_xticks([])
+    ax.set_ylabel(labels[feat], fontsize=14, fontweight='bold')
+    ax.set_yticks(
+        ticks = ticks[feat][0],
+        labels = ticks[feat][1],
+        font = font,
+        fontsize = 12
+        )
+    ax.set_ylim(minmax[feat])
+    fig.tight_layout(pad=1.5)
+    
+
+    fig.tight_layout()
+    plt.savefig(
+        os.path.join(behavpath, "NT1_CTL", f"{feat}_combined_mindstate_black_box.png"),
+        dpi=300
+    )
+    plt.close(fig) 
+    
+# %% Behaviour | ME MS + Stripp NT1
+
+subtype_oi = "N1"
+
+feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
+
+df_grouped = sub_df.loc[sub_df.subtype == subtype_oi][
+    ['sub_id','rt_go','rt_nogo','std_rtgo','hits','miss',
+      'correct_rejections','false_alarms','mindstate','sleepiness']
+    ].groupby(
+        ['sub_id','mindstate'], as_index=False).mean()
+
+minmax = {
+    "sleepiness": [1, 9],
+    "miss": [0, 100],
+    "false_alarms": [0, 100],
+    "rt_go": [0.2, 0.8],
+    "std_rtgo": [0, 0.3]
+    }
+labels = {
+    "sleepiness": "Sleepiness",
+    "miss": "Misses (%)",
+    "false_alarms": "False Alarms (%)",
+    "rt_go": "Reaction Time (s)",
+    "std_rtgo": "SD of RT (s)"
+    }
+ticks = {
+    "sleepiness": [np.linspace(1,9,9), np.arange(1,10)],
+    "miss": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
+    "false_alarms": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
+    "rt_go": [np.linspace(.2,.8,7), np.round(np.linspace(.2,.8,7),2)],
+    "std_rtgo": [np.linspace(0,.3,4), np.round(np.linspace(0,.3,4),2)]
+    }
+
+mind_order = ['ON','MW_I','MW_H','MB','FORGOT']
+this_palette = ["#FFC000", "#00B050", "#7030A0", "#0070C0", "#000000"]              
+
+for feat in feats:
+    fig, ax = plt.subplots(figsize=(3,4))
+
+    sns.boxplot(
+        data=df_grouped,
+        hue='mindstate', y=feat,
+        hue_order=mind_order,
+        palette=this_palette,
+        width=0.8,
+        fliersize=0,
+        linewidth = 2,
+        gap=.15,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
+    
+    sns.stripplot(
+        data=df_grouped,
+        hue='mindstate', 
+        y=feat,
+        hue_order=mind_order,
+        palette=this_palette,
+        dodge=.55, 
+        jitter=0.2,
+        alpha=0.4,
+        size=7,
+        ax=ax,
+        legend=None
+        )
+    
+    sns.despine(bottom=True)
+    # ax.set_xlabel("")
+    # ax.set_xticks([])
+    ax.set_ylabel(labels[feat], fontsize=14, fontweight='bold')
+    ax.set_yticks(
+        ticks = ticks[feat][0],
+        labels = ticks[feat][1],
+        font = font,
+        fontsize = 12
+        )
+    ax.set_ylim(minmax[feat])
+    fig.tight_layout(pad=1.5)
+    
+
+    fig.tight_layout()
+    # plt.savefig(
+    #     os.path.join(behavpath, "NT1_CTL", f"{feat}_combined_mindstate_black_box.png"),
+    #     dpi=300
+    # )
+    
+# %% Stripplot version
+    
+for feat in feats:
+    fig, ax = plt.subplots(figsize=(5,4))
+
+    sns.boxplot(
+        data=df_grouped,
+        x='mindstate', y=feat,
+        order=mind_order,
+        palette=['k' for i in range(len(mind_order))],
+        width=0.18,
+        fliersize=0,
+        linewidth = 2,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
+
+    # 2) individual points per group
+    sns.stripplot(
+        data=df_grouped,
+        x='mindstate', y=feat,
+        hue='subtype', hue_order=['HS','N1'],
+        palette=group_palette,
+        dodge=.55, jitter=0.0,
+        alpha=0.5,
+        size=7,
+        ax=ax,
+        legend=None
+        )
+
+    # sns.despine()
+    # ax.set_xlabel("Mindstate", fontsize=14, fontweight='bold')
+    # ax.set_xticks(
+    #     np.linspace(0, len(order)-1, len(order)),
+    #     ['ON','MW','MB','HA','FG'], 
+    #     font = font,
+    #     fontsize=12
+    #     )
+    sns.despine(bottom=True)
+    ax.set_xlabel("")
+    ax.set_xticks([])
+    
+    ax.set_ylabel(labels[feat], fontsize=14, fontweight='bold')
+    ax.set_yticks(
+        ticks = ticks[feat][0],
+        labels = ticks[feat][1],
+        font = font,
+        fontsize = 14
+        )
+    ax.set_ylim(minmax[feat])
+    fig.tight_layout(pad=1.5)
+    
+
+    fig.tight_layout()
+    plt.savefig(
+        os.path.join(behavpath, "NT1_CTL", f"{feat}_combined_mindstate_stripplot.png"),
+        dpi=300
+    )
+    plt.close(fig) 
+    
+# %% Separate plots [ST diff]
+
+feats = ["miss", "false_alarms", "rt_go", "std_rtgo"]
 this_df = sub_df.copy().drop(
     columns=['daytime', 'mindstate']
     ).groupby(['sub_id', 'subtype'], as_index = False).mean()
 
 minmax = {
-    "sleepiness" : [1, 9],
     "miss" : [0, 100],
     "false_alarms" : [0, 100],
     "rt_go" : [.3, .6],
     "std_rtgo" : [0, .2]
     }
 labels = {
-    "sleepiness" : "Sleepiness",
     "miss" : "Misses (%)",
     "false_alarms" : "False Alarms (%)",
     "rt_go" : "Reaction Time (ms)",
     "std_rtgo" : "Standard Deviation RT"
     }
 ticks = {
-    "sleepiness" : [np.linspace(1,9,9), np.linspace(1,9,9).astype(int)],
     "miss" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
     "false_alarms" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
     "rt_go" : [np.linspace(.3,.6, 4), np.round(np.linspace(.3,.6, 4),1)],
@@ -1333,9 +1605,9 @@ data = this_df
 hue = 'subtype'
 hue_order = ['HS', 'N1']
 
-for feat in feats :
-    fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (2, 3))
-
+fig, axs = plt.subplots(nrows = 1, ncols = len(feats), figsize = (8, 3))
+for i_f, feat in enumerate(feats) :
+    ax = axs[i_f]
     y = feat
     sns.boxplot(
         data = data, 
@@ -1346,20 +1618,46 @@ for feat in feats :
         hue_order = hue_order,
         palette=subtype_palette, 
         fill=False,
+        linewidth=2,
         width=0.8, 
         dodge='auto', 
         gap=.2, 
-        ax=ax
+        ax=ax,
+        legend=None,
+        showfliers=False
         )
-    sns.despine()
+    # sns.violinplot(
+    #     data=this_df,
+    #     y=feat,
+    #     hue='subtype', 
+    #     hue_order=['HS','N1'],
+    #     palette=group_palette,
+    #     # linecolor="w",
+    #     gap=.1, 
+    #     split=True,
+    #     alpha=0.6,
+    #     inner=None,
+    #     fill=False,
+    #     ax=ax,
+    #     legend=None,
+    #     )
+    sns.stripplot(
+        data=this_df,
+        y=feat,
+        hue='subtype', 
+        hue_order=['HS','N1'],
+        palette=group_palette,
+        dodge=True, 
+        jitter=0.2,
+        alpha=0.2,
+        size=6,
+        ax=ax,
+        legend=None
+        )
     
-    ax.set_xticks(
-        np.linspace(-0.2, 0.2, len(hue_order)),
-        hue_order,
-        font = font, 
-        fontsize = 12
-        )
-    ax.set_xlabel("Group", font=bold_font, fontsize=14)
+    sns.despine(bottom=True)
+    ax.set_xticks([])
+    # ax.set_xlabel("Group", font=bold_font, fontsize=14)
     ax.set_yticks(
         ticks = ticks[feat][0],
         labels = ticks[feat][1],
@@ -1368,14 +1666,11 @@ for feat in feats :
         )
     ax.set_ylim(minmax[feat][0], minmax[feat][1])
     ax.set_ylabel(labels[feat], font = bold_font, size = 14)
-    
-    ax.get_legend().remove()
-    
     fig.tight_layout()
     
-    plt.savefig(os.path.join(
-        behavpath, "NT1_CTL", f"{feat}_boxplot_ST_only.png"
-        ), dpi=300)
+plt.savefig(os.path.join(
+    behavpath, "NT1_CTL", "behav_boxplot_ST_only.png"
+    ), dpi=300)
 
 # %% Compute TransMat MS
 

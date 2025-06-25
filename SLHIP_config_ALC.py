@@ -354,78 +354,453 @@ def automatic_ica(
     return ica
 
 
-# def generate_flexible_report(
-#         raw, epochs, ica, sub_id, output_dir, 
-#         compare_evoked=True, 
-#         include_raw=True, 
-#         include_psd=True, 
-#         include_ica=True):
-#     """
-#     Generate a comprehensive HTML report with flexible content inclusion and ICA comparison.
+#### Cluster Permutations
 
-#     Parameters:
-#     - raw: mne.io.Raw, the original raw data.
-#     - epochs: mne.Epochs, the epochs before ICA application.
-#     - ica: mne.preprocessing.ICA, the ICA object after fitting.
-#     - sub_id: str, subject identifier for file naming.
-#     - output_dir: str, directory to save the report.
-#     - compare_evoked: bool, whether to include comparison of evoked responses before and after ICA.
-#     - include_raw: bool, whether to include the raw data section.
-#     - include_psd: bool, whether to include power spectral density of the raw data.
-#     - include_ica: bool, whether to include ICA components and classification.
 
-#     Returns:
-#     - None, saves the report to the specified path.
-#     """
-#     from mne import Report
-#     report = Report(
-#         title=f'EEG Preprocessing Report for Subject {sub_id}', verbose=True
-#         )
+
+def prepare_neighbours_from_layout(info, ch_type='eeg'):
+    """
+    Create a neighbours structure similar to FieldTrip's ft_prepare_neighbours
+    using Delaunay triangulation.
+
+    Parameters
+    ----------
+    info : MNE Info object
+        contains sensor locations..
+    ch_type : str, optional
+        Type of channels to consider (e.g., 'eeg'). The default is 'eeg'.
+
+    Returns
+    -------
+    neighbours_list : A list of dicts.
+        With each channel's label and its neighbours.
+
+    """
+    from scipy.spatial import Delaunay
+    import numpy as np
+    # Get the 2D positions of the channels from info
+    pos = []
+    labels = []
+    for ch in info['chs']:
+        # Filter by channel type if needed, e.g., check ch['kind'] or use mne.pick_types.
+        # Here we simply assume that the info is for the ch_type of interest.
+        if 'loc' in ch:
+            # Use the first two coordinates from the sensor location as 2D projection
+            pos.append(ch['loc'][:2])
+            labels.append(ch['ch_name'])
     
-#     if include_raw:
-#         report.add_raw(raw=raw, title='Raw Data', psd = True)
-#     if include_ica:
-#         ecg_evks = epochs.copy().average(picks = 'ECG')
-#         eog_evks = epochs.copy().average(picks = ['eog'])
-#         eog_idx, eog_scores = ica.find_bads_eog(
-#             epochs, 
-#             ch_name='VEOG', 
-#             threshold='auto',
-#             l_freq=1, 
-#             h_freq=10, 
-#             measure='correlation')
-#         ecg_idx, ecg_scores = ica.find_bads_ecg(
-#             epochs, 
-#             ch_name='ECG', 
-#             threshold='auto',
-#             l_freq=8, 
-#             h_freq=16, 
-#             method='ctps', 
-#             measure='correlation', 
-#             verbose=None)
-        
-#         report.add_ica(
-#             ica=ica, 
-#             title='ICA Components', 
-#             inst=epochs, 
-#             ecg_evoked=ecg_evks,
-#             eog_evoked=eog_evks,
-#             )
+    pos = np.array(pos)
     
-#     # Compare evoked responses before and after ICA
-#     if compare_evoked:
-#         evoked_before = epochs.average()
-#         epochs_clean = ica.apply(epochs.copy())
-#         evoked_after = epochs_clean.average()
-        
-#         fig_before = evoked_before.plot(show=False)
-#         fig_after = evoked_after.plot(show=False)
-        
-#         report.add_figure(fig_before, title='Evoked Response Before ICA')
-#         report.add_figure(fig_after, title='Evoked Response After ICA')
+    # Perform Delaunay triangulation
+    tri = Delaunay(pos)
     
-#     report_path = f"{output_dir}/{sub_id}_report.html"
-#     report.save(report_path, overwrite=True)
-#     print(f"Report saved to {report_path}")
+    # Create a dictionary where each channel has a set of neighbours
+    neighbours = {label: set() for label in labels}
+    
+    # For each simplex (triangle) in the triangulation, add edges between sensors
+    for simplex in tri.simplices:
+        for i in range(3):
+            ch_i = labels[simplex[i]]
+            for j in range(i + 1, 3):
+                ch_j = labels[simplex[j]]
+                neighbours[ch_i].add(ch_j)
+                neighbours[ch_j].add(ch_i)
+    
+    # Format the neighbours info as a list of dictionaries (similar to FieldTrip's structure)
+    neighbours_list = []
+    for label in labels:
+        neighbours_list.append({
+            'label': label,
+            'neighblabel': list(neighbours[label])
+        })
+    
+    return neighbours_list
+
+# ============================================================================
+# 1. Run mixed-effects model for a given channel (unchanged)
+def run_mixedlm(data, channel, interest, model):    
+    """
+    Run a mixed linear model for a given channel
+
+    Parameters
+    ----------
+    data : Pandas DataFrame
+        DataFrame containing the values to run LME.
+    channel : List
+        List of channels in the correct order for later plotting.
+    interest : str
+        Name of effect of interest to collect p and t values.
+    model : str
+        Models to run LME.
+
+    Returns
+    -------
+    p_values_oi : list
+        p values of interest.
+    t_values_oi : list
+        t values of interest.
+    """
+    import statsmodels.formula.api as smf
+    import numpy as np
+    
+    subdf = data.loc[data.channel == channel].dropna()
+    md = smf.mixedlm(
+        model, subdf, groups=subdf['sub_id']
+        )
+    try:
+        mdf = md.fit(method='lbfgs', reml=False)
+        t_values_oi = mdf.tvalues[interest]
+        p_values_oi = mdf.pvalues[interest]
+    except Exception as e:
+        print(f"Model failed for channel {channel}: {e}")
+        t_values_oi = np.nan
+        p_values_oi = 1
+    
+    return (p_values_oi, t_values_oi)
+
+# ============================================================================
+# 2. Updated helper function: Cluster significant channels using spatial neighbours,
+#    ensuring only candidate channels (uncorrected p < clus_alpha) are included.
+def cluster_significant_channels(
+        channels, 
+        pvals, 
+        tvals, 
+        neighbours, 
+        clus_alpha, 
+        min_cluster_size, 
+        sign='pos'
+        ):
+    """
+    Create clusters of significant channels based solely on candidate channels.
+    1) Select candidate channels (p < clus_alpha, correct sign).
+    2) Seed one‐channel clusters for each candidate.
+    3) Iteratively merge any two clusters if any channel in A is a neighbour
+       of any channel in B (using the supplied neighbours map).
+    4) Discard clusters smaller than min_cluster_size.
+
+    Parameters
+    ----------
+    channels : List
+        List of channel labels.
+    pvals : List
+        List of p-values for each channel.
+    tvals : List
+        List of t-values for each channel.
+    neighbours : List of dicts
+        List of dicts. Each dict has keys 'label' (channel label)
+        and 'neighblabel' (list of neighbouring channel labels).
+    clus_alpha : float
+        The uncorrected p-value threshold.
+    min_cluster_size : float
+        Minimum number of channels required for a valid cluster.
+    sign : str, optional
+        'pos' for positive effects, 'neg' for negative. The default is 'pos'.
+
+    Returns
+    -------
+    clusters : List
+        A list of clusters. Each cluster is a dict with keys:
+        'labels'  : a set of channel labels that are candidates and belong to the cluster,
+        'tstats'  : a list of t-values for those channels,
+        'neighbs' : the union of candidate neighbour labels for all channels in the cluster.
+    """
+    import numpy as np
+    # 1) Build candidate set
+    candidate_set = {
+        channels[i]
+        for i in range(len(channels))
+        if (pvals[i] < clus_alpha)
+           and ((sign=='pos' and tvals[i]>0) or (sign=='neg' and tvals[i]<0))
+    }
+    # Quick neighbour lookup: channel -> set of its neighbours (intersected with candidates)
+    neigh_map = {
+        n['label']: set(n['neighblabel']).intersection(candidate_set)
+        for n in neighbours
+        if n['label'] in candidate_set
+    }
+    # 2) Seed initial one‐channel clusters
+    clusters = []
+    for ch in candidate_set:
+        clusters.append({
+            'labels': {ch},
+            'tstats': [tvals[np.where(channels == ch)[0][0]]]
+        })
+    
+    # 3) Iteratively merge any two clusters that touch
+    merged = True
+    while merged:
+        merged = False
+        new_clusters = []
+        used = [False]*len(clusters)
+        for i, ci in enumerate(clusters):
+            if used[i]:
+                continue
+            # try to absorb any later cluster that’s adjacent
+            for j in range(i+1, len(clusters)):
+                if used[j]:
+                    continue
+                cj = clusters[j]
+                # check adjacency: any channel in ci is neighbour of any in cj?
+                if any(
+                    (label in neigh_map and neigh_map[label] & cj['labels'])
+                    for label in ci['labels']
+                ) or any(
+                    (label in neigh_map and neigh_map[label] & ci['labels'])
+                    for label in cj['labels']
+                ):
+                    # fuse j into i
+                    ci['labels'] |= cj['labels']
+                    ci['tstats']  += cj['tstats']
+                    used[j] = True
+                    merged = True
+            new_clusters.append(ci)
+        clusters = new_clusters
+    
+    # 4) Filter by minimum cluster size
+    clusters = [c for c in clusters if len(c['labels']) >= min_cluster_size]
+    return clusters
+
+# ============================================================================
+# 3. Permutation procedure with clustering using neighbour information
+def permute_and_cluster(
+        data, 
+        model,
+        interest, 
+        to_permute,
+        num_permutations, 
+        neighbours, 
+        clus_alpha, 
+        min_cluster_size,
+        channels
+        ):
+    """
+    Compute original channel p-values and t-values, build clusters based on 
+    neighbours, and then generate a null distribution via permutation clustering.
+
+    Parameters
+    ----------
+    data : Pandas DataFrame
+        DataFrame containing the data.
+    model : str
+        The model to run linear mixed models.
+    interest : str
+        The effect of interest (e.g., 'n_session:C(difficulty)[T.HARD]').
+    num_permutations : int
+        Number of permutations.
+    neighbours : List of Dict
+        Neighbours structure (list of dicts as produced by e.g., prepare_neighbours_from_layout).
+    clus_alpha : float
+        Uncorrected p-value threshold (e.g., 0.05).
+    min_cluster_size : int
+        Minimum number of channels per cluster..
+    channels : list or np.array
+        List of channels in the right order for later 
+
+    Returns
+    -------
+    clusters_pos : List (to complete)
+        Clusters from the real (non-permuted) data (for positive effects)..
+    clusters_neg : List (to complete)
+        Clusters from the real (non-permuted) data (for negative effects)..
+    perm_stats_pos : List
+        Lists of maximum cluster stats from each permutation.
+    perm_stats_neg : List
+        Lists of maximum cluster stats from each permutation.
+    original_pvals : List
+        Original channel-level statistics.
+    original_tvals : List
+        Original channel-level statistics.
+
+    """
+    import numpy as np
+    
+    original_pvals = []
+    original_tvals = []
+    for chan in channels:
+        p, t = run_mixedlm(data, chan, interest, model)
+        original_pvals.append(p)
+        original_tvals.append(t)
+    
+    if np.any(np.isnan(original_tvals)) :
+        for pos in np.where(np.isnan(original_tvals))[0] :
+            original_tvals[pos] = np.nanmean(original_tvals)
+    
+    # Form clusters separately for positive and negative effects.
+    clusters_pos = cluster_significant_channels(
+        channels, 
+        original_pvals, 
+        original_tvals,
+        neighbours, 
+        clus_alpha, 
+        min_cluster_size, 
+        sign='pos'
+        )
+    clusters_neg = cluster_significant_channels(
+        channels, 
+        original_pvals, 
+        original_tvals,
+        neighbours, 
+        clus_alpha, 
+        min_cluster_size, 
+        sign='neg'
+        )
+    
+    perm_stats_pos = []  # one value per permutation: maximum cluster t-sum (for positive clusters)
+    perm_stats_neg = []  # one value per permutation: minimum (most negative) cluster t-sum (for negative clusters)
+    
+    for _ in range(num_permutations):
+        shuffled_data = data.copy()
+        shuffled_data[to_permute] = np.random.permutation(shuffled_data[to_permute].values)
+        perm_pvals = []
+        perm_tvals = []
+        for chan in channels:
+            p, t = run_mixedlm(shuffled_data, chan, interest, model)
+            perm_pvals.append(p)
+            perm_tvals.append(t)
+        
+        perm_clusters_pos = cluster_significant_channels(
+            channels, 
+            perm_pvals, 
+            perm_tvals,
+            neighbours, 
+            clus_alpha, 
+            min_cluster_size, 
+            sign='pos')
+        perm_clusters_neg = cluster_significant_channels(
+            channels,
+            perm_pvals, 
+            perm_tvals,
+            neighbours, 
+            clus_alpha, 
+            min_cluster_size, 
+            sign='neg'
+            )
+        
+        if perm_clusters_pos:
+            perm_stat_pos = max(sum(clust['tstats']) for clust in perm_clusters_pos)
+        else:
+            perm_stat_pos = 0
+        perm_stats_pos.append(perm_stat_pos)
+        
+        if perm_clusters_neg:
+            perm_stat_neg = min(sum(clust['tstats']) for clust in perm_clusters_neg)
+        else:
+            perm_stat_neg = 0
+        perm_stats_neg.append(perm_stat_neg)
+    
+    return clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, original_pvals, original_tvals
+
+# ============================================================================
+# 4. Determine which real clusters are significant via permutation comparison
+def identify_significant_clusters(
+        clusters_pos,
+        clusters_neg, 
+        perm_stats_pos, 
+        perm_stats_neg, 
+        montecarlo_alpha, 
+        num_permutations
+        ):
+    """
+    Compare each original cluster statistic against its permutation distribution and return
+    those clusters that are significant.
+
+    Parameters
+    ----------
+    clusters_pos : List (to complete)
+        Clusters from the real (non-permuted) data (for positive effects)..
+    clusters_neg : List (to complete)
+        Clusters from the real (non-permuted) data (for negative effects)..
+    perm_stats_pos : List
+        Lists of maximum cluster stats from each permutation.
+    perm_stats_neg : List
+        Lists of maximum cluster stats from each permutation.
+    montecarlo_alpha : TYPE
+        DESCRIPTION.
+    num_permutations : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    significant_clusters : A list of tuple
+        (sign, cluster_labels, cluster_stat, p_value)
+        where sign is 'pos' or 'neg'.
+
+    """
+    import numpy as np
+    
+    significant_clusters = []
+    for clust in clusters_pos:
+        stat = sum(clust['tstats'])
+        p_value = (np.sum(np.array(perm_stats_pos) >= stat) + 1) / (num_permutations + 1)
+        if p_value < montecarlo_alpha:
+            significant_clusters.append(('pos', clust['labels'], stat, p_value))
+    
+    for clust in clusters_neg:
+        stat = sum(clust['tstats'])
+        p_value = (np.sum(np.array(perm_stats_neg) <= stat) + 1) / (num_permutations + 1)
+        if p_value < montecarlo_alpha:
+            significant_clusters.append(('neg', clust['labels'], stat, p_value))
+    
+    return significant_clusters
+
+
+# ============================================================================
+# 5. Visualization function
+def visualize_clusters(tvals, channels, significant_mask, info, savepath, vlims = None):
+    """
+    Visualize significant clusters using topomap.
+
+    Parameters
+    ----------
+    tvals : TYPE
+        DESCRIPTION.
+    channels : TYPE
+        DESCRIPTION.
+    significant_mask : TYPE
+        DESCRIPTION.
+    info : TYPE
+        DESCRIPTION.
+    savepath : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    
+    fig, ax = plt.subplots(figsize=(4, 4))
+    
+    im, cm = mne.viz.plot_topomap(
+        data=np.array(tvals),
+        pos=info,  # expects sensor positions from the info object
+        mask=significant_mask,
+        axes=ax,
+        show=False,
+        contours=2,
+        mask_params=dict(
+            marker='o',
+            markerfacecolor='w',
+            markeredgecolor='k',
+            linewidth=0,
+            markersize=8
+        ),
+        cmap="coolwarm",
+        vlim = vlims
+        )
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.25)
+    cax.set_title("t-values", fontsize=10)
+    cb = fig.colorbar(im, cax=cax)
+    cb.ax.tick_params(labelsize=10)
+    fig.colorbar(im, cax=cax)
+    fig.tight_layout()
+    # ax.set_title("Interaction Effect", fontweight="bold")
+    # fig.suptitle("T-values, Cluster Permutation Corrected", fontsize="xx-large", fontweight="bold")
+    plt.savefig(savepath, dpi = 300)
+    plt.show()
 
 

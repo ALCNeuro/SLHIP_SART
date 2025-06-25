@@ -289,30 +289,30 @@ for i, st in enumerate(['HS', 'N1']) :
         ls = "-",
         color = c_90[i]
         )
-    plt.axvline(
-        x = thresh_80[st],
-        ymin = 0,
-        ymax = 1.5,
-        label = f"80th P {st}",
-        ls = "--",
-        color = c_90[i]
-        )
-    plt.axvline(
-        x = thresh_70[st],
-        ymin = 0,
-        ymax = 1.5,
-        label = f"70th P {st}",
-        ls = "-.",
-        color = c_90[i]
-        )
-    plt.axvline(
-        x = thresh_60[st],
-        ymin = 0,
-        ymax = 1.5,
-        label = f"60th P {st}",
-        ls = ":",
-        color = c_90[i]
-        )
+    # plt.axvline(
+    #     x = thresh_80[st],
+    #     ymin = 0,
+    #     ymax = 1.5,
+    #     label = f"80th P {st}",
+    #     ls = "--",
+    #     color = c_90[i]
+    #     )
+    # plt.axvline(
+    #     x = thresh_70[st],
+    #     ymin = 0,
+    #     ymax = 1.5,
+    #     label = f"70th P {st}",
+    #     ls = "-.",
+    #     color = c_90[i]
+    #     )
+    # plt.axvline(
+    #     x = thresh_60[st],
+    #     ymin = 0,
+    #     ymax = 1.5,
+    #     label = f"60th P {st}",
+    #     ls = ":",
+    #     color = c_90[i]
+    #     )
 
 ax.set_xticks(np.linspace(0, 80, 5), np.linspace(0, 80, 5).astype(int), font = font, fontsize = 16)
 ax.set_xlim(5, 80)

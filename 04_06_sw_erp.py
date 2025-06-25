@@ -25,7 +25,6 @@ import seaborn as sns
 import os
 from statsmodels.nonparametric.smoothers_lowess import lowess
 
-from highlight_text import fig_text
 from matplotlib.font_manager import FontProperties
 # font
 personal_path = '/Users/arthurlecoz/Library/Mobile Documents/com~apple~CloudDocs/Desktop/A_Thesis/Others/Fonts/aptos-font'
@@ -48,10 +47,11 @@ files = glob(os.path.join(cleanDataPath, "epochs_probes", "*epo.fif"))
 
 # %%% Script
 
-# Each Session's list will contain an np.ndarray of the shape :
-#   nch, nsample  
-#   64, 2*256
-#   containing the mean sw erp for each subject at this session
+# Parameters
+winERP = [-1, 2]           # ERP window (in seconds)
+winBaseline = [-1, -.5]    # Baseline window (in seconds)
+t_zero = "start"    # "start", "neg_peak_pos", "pos_peak_pos"
+
 slope_range = [0.125, 2] # in uV/ms
 positive_amp = 75 # in uV
 amplitude_max = 150
@@ -150,6 +150,8 @@ else :
 # %% ERP - average - sessions
 # thisErpFile = os.path.join(swDataPath, "dic_erp_sw.pkl")
 # big_dic = pickle.load(thisErpFile)
+
+subtypes = ["HS", "N1"]
 
 times = np.linspace(0, 512, 512)
 palette = ["#8d99ae", "#d00000", "#ffb703"]

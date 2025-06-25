@@ -1,41 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Thu Oct 24 16:09:25 2024
+Created on Thu Oct 24 16:10:39 2024
 
 @author: arthurlecoz
 
-03_03_compute_periodic_power.py
+03_01_compute_global_power.py
+
 """
 # %% Paths
-import mne 
-import os 
+import mne
+import os
 
 import numpy as np
 import pandas as pd
 import SLHIP_config_ALC as config
 
-from statsmodels.nonparametric.smoothers_lowess import lowess
 from fooof import FOOOF
-from fooof.sim.gen import gen_aperiodic
 from glob import glob
+from statsmodels.nonparametric.smoothers_lowess import lowess
 
 cleanDataPath = config.cleanDataPath
 powerPath = config.powerPath
 
-periodicPath = os.path.join(powerPath, 'periodic')
-reports_path = os.path.join(periodicPath, "reports")
-# epochs_files  = glob(os.path.join(cleanDataPath, "*epo.fif"))
+aperiodicPath = os.path.join(powerPath, 'aperiodic')
+reports_path = os.path.join(aperiodicPath, "reports")
 
 channels = np.array(config.eeg_channels)
-
 subtypes = ["C1", "HI", "N1"]
 psd_palette = ["#8d99ae", "#d00000", "#ffb703"]
-
-threshold = dict(eeg = 600e-6)
-
 freqs = np.linspace(0.5, 40, 159)
-
 method = "welch"
 fmin = 0.5
 fmax = 40
@@ -43,29 +37,35 @@ n_fft = 1024
 n_per_seg = n_fft
 n_overlap = int(n_per_seg/2)
 window = "hamming"
-
-coi = ["sub_id", "subtype", "channel", "mindstate", "sleepiness", "n_probe",
-       "n_block", "voluntary", "freq_bin", "power_value"]
-
+threshold = dict(eeg = 600e-6)
+coi = [
+   "sub_id", 
+   "subtype",
+   "channel", 
+   "mindstate", 
+   "sleepiness", 
+   "n_probe",
+   "n_block", 
+   "voluntary", 
+   "freq_bin", 
+   "power_value"
+   ]
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
+mindstates = ['ON', 'MW', 'MB', 'HALLU', 'FORGOT']
 
-mindstates = ['ON', 'MW', 'HALLU', 'MB', 'FORGOT']
+# %% Single process
 
-# %% Single Process
-
-redo = 0
-
+redo = 1
 all_csv = []
 
 for i_f, file in enumerate(files) :
-    
     sub_id = file.split('probes/')[-1].split('_epo')[0]
     daytime = sub_id[-2:]
     subtype = sub_id[:2]
     sub_id = sub_id[:-3]
     
     this_subject_savepath = os.path.join(
-        periodicPath, f"{sub_id}_{daytime}_periodic_psd.csv"
+        aperiodicPath, f"{sub_id}_{daytime}_aperiodic_psd.pickle"
         )
     
     if os.path.exists(this_subject_savepath) and not redo : 
@@ -82,7 +82,7 @@ for i_f, file in enumerate(files) :
         epochs.drop_bad(threshold)
         
         metadata = epochs.metadata
- 
+        
         for ms in mindstates:
             print(f"[{i_f+1}/{len(files)}] Processing {ms}")
             if ms not in metadata.mindstate.unique() : continue
@@ -125,13 +125,8 @@ for i_f, file in enumerate(files) :
                     
                     if fm.r_squared_ < .95 : continue
                     if fm.error_ > .1 : continue
-                    
-                    init_ap_fit = gen_aperiodic(
-                        fm.freqs, 
-                        fm._robust_ap_fit(fm.freqs, fm.power_spectrum)
-                        )
-                    
-                    init_flat_spec = fm.power_spectrum - init_ap_fit
+                
+                    this_psd = 10 * np.log10(psd)
     
                     for i, f in enumerate(freqs):
                         sub_dic['sub_id'].append(sub_id)
@@ -144,7 +139,7 @@ for i_f, file in enumerate(files) :
                         sub_dic['n_probe'].append(this_probe)
                         
                         sub_dic["freq_bin"].append(f)
-                        sub_dic["power_value"].append(init_flat_spec[i])
+                        sub_dic["power_value"].append(this_psd[i])
     
         subdf = pd.DataFrame.from_dict(sub_dic)
         subdf.to_csv(this_subject_savepath)
@@ -153,5 +148,6 @@ for i_f, file in enumerate(files) :
     
 df = pd.concat(all_csv)
 df.to_csv(os.path.join(
-    periodicPath, "all_periodic_psd.csv"
+    aperiodicPath, "all_aperiodic_psd.csv"
     ))
+        

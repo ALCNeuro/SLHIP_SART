@@ -83,14 +83,13 @@ for i_file, file in enumerate(files) :
     print(f"...processing {sub_id}")
     
     epochs = mne.read_epochs(file, preload = True)
-    epochs.drop_bad(threshold) # If you already cleaned the data or don't care, comment this line
+    epochs.drop_bad(threshold) 
     
     metadata = epochs.metadata
     
     for ms in mindstates:
         print(f'processing {ms}')
         if ms not in metadata.mindstate.unique() : continue
-        temp_list = []
         temp_power = epochs[epochs.metadata.mindstate == ms].compute_psd(
                 method = method,
                 fmin = fmin, 
