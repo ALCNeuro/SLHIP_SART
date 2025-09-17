@@ -93,30 +93,45 @@ else :
     
         df = df.loc[
             (df['PTP'] < amplitude_max) 
-            & (df['PTP'] > 20)
             & (df['pos_amp_peak'] < positive_amp)]
         df = df.loc[
             (df["pos_halfway_period"] <= slope_range[1])
             & (df["pos_halfway_period"] >= slope_range[0])
             ]
         
+        thresholds_90 = {}
+        for c in channels:
+            try :
+                thresholds_90[c] = np.percentile(df.PTP.loc[df.channel==c], 90)
+            except :
+                print(f"No SW in {c}")
+                thresholds_90[c] = np.nan
+        
+        df_sw = pd.concat([
+            df.loc[(df.channel == c) 
+                   & (df.PTP >= thresholds_90[c])] for c in channels
+            ])
+        
         epochs = mne.read_epochs(file)
         epochs.pick('eeg')
+        epochs.filter(0.5, 30)
          
         sf = epochs.info["sfreq"]
         data = epochs.copy().get_data(units = dict(eeg = 'µV'))
         nepochs, nchans, nsamples = data.shape
         winERP_samples = int((winERP[1] - winERP[0]) * sf)
-        this_erp = np.empty((nchans, winERP_samples))
+        this_erp = np.nan * np.empty((nchans, winERP_samples))
     
         for ch in range(nchans) :
             print(f"...Processing {epochs.ch_names[ch]}")
             temp_erp = []
             for n_epoch in range(nepochs) :
                 thisChan = data[n_epoch, ch, :]
-                epoch_chan_sw = df.loc[
-                    (df['n_epoch'] == n_epoch)
-                    & (df['channel'] == epochs.ch_names[ch])]
+                epoch_chan_sw = df_sw.loc[
+                    (df_sw['n_epoch'] == n_epoch)
+                    & (df_sw['channel'] == epochs.ch_names[ch])]
+                
+                if epoch_chan_sw.empty : continue
                 
                 for _, row in epoch_chan_sw.iterrows():
                     start = row[t_zero]
@@ -208,23 +223,23 @@ for i_st, subtype in enumerate(['HS', 'N1']):
         )   
 
     # Set ticks, limits and labels
-    ax.set_xticks(
-        np.linspace(0, 768, 5),
-        np.round(np.linspace(-1, 1, 5), 2),
-        fontsize=11
-        )
-    ax.set_yticks(
-        np.linspace(-15, 5, 5),
-        np.linspace(-15, 5, 5),
-        fontsize=11
-        )
-    ax.set_ylim(-15, 7.5)
-    # ax.set_xlim(125, 500)
+    # ax.set_xticks(
+    #     np.linspace(0, 768, 5),
+    #     np.round(np.linspace(-1, 1, 5), 2),
+    #     fontsize=11
+    #     )
+    # ax.set_yticks(
+    #     np.linspace(-15, 5, 5),
+    #     np.linspace(-15, 5, 5),
+    #     fontsize=11
+    #     )
+    # ax.set_ylim(-15, 7.5)
+    # ax.set_xlim(0, 768)
     ax.spines['right'].set_visible(False)
     ax.spines['top'].set_visible(False)
     ax.set_xlabel("Time from start of SW (s)", fontsize=15)
     ax.set_ylabel("Evoked Voltage (µV)", fontsize=15)
-    fig.tight_layout(pad=2)
+    fig.tight_layout()
 
 # %% ERP - average - sessions
 # thisErpFile = os.path.join(swDataPath, "dic_erp_sw.pkl")

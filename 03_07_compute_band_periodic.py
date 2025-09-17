@@ -27,11 +27,11 @@ font_path = personal_path + '/aptos-light.ttf'
 font = FontProperties(fname=font_path)
 bold_font = FontProperties(fname=personal_path + '/aptos-bold.ttf')
 
+rootpath = config.rootpath
 cleanDataPath = config.cleanDataPath
 powerPath = config.powerPath
-
+behavpath = os.path.join(rootpath, "02_BehavResults")
 bandpowerPath = os.path.join(powerPath, 'bandperiodic')
-reports_path = os.path.join(bandpowerPath, "reports")
 
 channels = np.array(config.eeg_channels)
 
@@ -56,117 +56,207 @@ freq_bands = {
      'gamma': (30, 40)
      }
 
-threshold = dict(eeg = 600e-6)
+# threshold = dict(eeg = 600e-6)
 
 files = glob(os.path.join(cleanDataPath, "epochs_probes", "*.fif"))
 
 coi = ['sub_id', 'subtype', 'channel', 'mindstate', 'sleepiness', 
-   'n_probe', 'n_block', 'voluntary',
+   'n_probe', 'n_block', 'voluntary', 'daytime', 
    'abs_delta','abs_theta','abs_alpha','abs_beta','abs_gamma',
-   'rel_delta','rel_theta','rel_alpha','rel_beta','rel_gamma']
+   'rel_delta','rel_theta','rel_alpha','rel_beta','rel_gamma',
+   'rt_go', 'miss', 'false_alarms', 'std_rtgo'
+   ]
 
 cols_power = [
     'abs_delta','abs_theta','abs_alpha','abs_beta','abs_gamma',
     'rel_delta','rel_theta','rel_alpha','rel_beta','rel_gamma'
     ]
 
+behav_ms_format = {
+    'ON' : 'ON',
+    'MW_I' : 'MW',
+    'MW_H' : 'HALLU',
+    'MW_E' : 'DISTRACTED',
+    'MB' : 'MB',
+    'FORGOT' : 'FORGOT',
+    'MISS' : 'MISS'
+    }
+
+df_behavior = pd.read_csv(f"{behavpath}/VDF_dfBEHAV_SLHIP_20sbProbe.csv")
+del df_behavior['Unnamed: 0']
+
+df_behavior['mindstate'] = [behav_ms_format[ms] for ms in df_behavior.mindstate.values]
+
 # %% Loop
 
 mindstates = ['ON', 'MW', 'HALLU', 'MB', 'FORGOT']
 
-bigdic = {f : [] for f in coi}
+all_df = []
     
 for i_file, file in enumerate(files) :
+    
     sub_id = file.split('probes/')[-1].split('_epo')[0]
     subtype = sub_id[:2]
-
-    print(f"...processing {sub_id}")
+    daytime = sub_id[-2:]
+    sub_id = sub_id[:-3]
     
-    epochs = mne.read_epochs(file, preload = True)
-    epochs.drop_bad(threshold) 
+    this_savename = os.path.join(
+        bandpowerPath,
+        f"{sub_id}_{daytime}_bandperiodic.csv"
+        )
     
-    metadata = epochs.metadata
-    
-    for ms in mindstates:
-        print(f'processing {ms}')
-        if ms not in metadata.mindstate.unique() : continue
-        temp_power = epochs[epochs.metadata.mindstate == ms].compute_psd(
-                method = method,
-                fmin = fmin, 
-                fmax = fmax,
-                n_fft = n_fft,
-                n_overlap = n_overlap,
-                n_per_seg = n_per_seg,
-                window = window,
-                picks = channels
-                )
-        this_metadata = metadata.loc[metadata.mindstate == ms]
+    if os.path.exists(this_savename) :
+        print(f"[{i_file+1}/{len(files)}] | Loading {sub_id} {daytime}...")
+        subdf = pd.read_csv(this_savename)
+        del subdf['Unnamed: 0']
+        all_df.append(subdf)
         
-        for i_epoch in range(len(this_metadata)) :
-            
-            this_power = temp_power[i_epoch]   
-            this_sleepi = this_metadata.sleepiness.iloc[i_epoch]           
-            this_vol = this_metadata.voluntary.iloc[i_epoch]     
-            this_block = this_metadata.nblock.iloc[i_epoch]     
-            this_probe = this_metadata.nprobe.iloc[i_epoch]     
-            
-            for i_ch, channel in enumerate(channels):
-            
-                psd = lowess(np.squeeze(
-                    this_power.copy().pick(channel).get_data()), 
-                    freqs, 0.075)[:, 1]
-                
-                if not psd.shape:
-                    input('inspect')
-                
-                if np.any(psd < 0) :
-                    for id_0 in np.where(psd<0)[0] :
-                        psd[id_0] = abs(psd).min()
-                        
-                fm = FOOOF(peak_width_limits = [.5, 6], aperiodic_mode="fixed")
-                fm.add_data(freqs, psd)
-                fm.fit()
-                
-                if fm.r_squared_ < .95 : continue
-                if fm.error_ > .1 : continue
-                
-                init_ap_fit = gen_aperiodic(
-                    fm.freqs, 
-                    fm._robust_ap_fit(fm.freqs, fm.power_spectrum)
+    else : 
+        sub_dic = {f:[] for f in coi}        
+        print(f"[{i_file+1}/{len(files)}] | Computing {sub_id} {daytime}...")
+        
+        epochs = mne.read_epochs(file, preload = True)
+        
+        if sub_id == "HI_002" and daytime == "AM" :
+            if len(epochs) > 39 :
+                epochs = epochs[1:]
+        elif sub_id == "N1_009" and daytime == "AM" :
+            if len(epochs) > 27 :
+                epochs = epochs[13:]
+        if sub_id == "N1_012" and daytime == "AM" :
+            if len(epochs) > 37 :
+                epochs = epochs[:37]
+        elif sub_id == "N1_015" and daytime == "PM" :
+            if len(epochs) > 30 :
+                epochs = epochs[:30]
+        
+        # epochs.drop_bad(threshold)
+        
+        metadata = epochs.metadata
+        
+        if sub_id == "HI_002" and daytime == "AM" :
+            sub_behav = df_behavior.loc[
+                (df_behavior.sub_id == f"sub_{sub_id}")
+                & (df_behavior.daytime == daytime)
+                ].iloc[1:]
+        if sub_id == "N1_009" and daytime == "AM" :
+            sub_behav = df_behavior.loc[
+                (df_behavior.sub_id == f"sub_{sub_id}")
+                & (df_behavior.daytime == daytime)
+                ].iloc[13:]
+        if sub_id == "N1_015" and daytime == "PM" :
+            sub_behav = df_behavior.loc[
+                (df_behavior.sub_id == f"sub_{sub_id}")
+                & (df_behavior.daytime == daytime)
+                ].iloc[:30]
+        if sub_id == "N1_012" and daytime == "AM" :
+            sub_behav = df_behavior.loc[
+                (df_behavior.sub_id == f"sub_{sub_id}")
+                & (df_behavior.daytime == daytime)
+                ].iloc[:37]
+        else :     
+            sub_behav = df_behavior.loc[
+                (df_behavior.sub_id == f"sub_{sub_id}")
+                & (df_behavior.daytime == daytime)
+                ]
+        
+        for ms in mindstates:
+            print(f'[{i_file+1}/{len(files)}] | {sub_id} {daytime}... Processing {ms}')
+            if ms not in metadata.mindstate.unique() : continue
+            temp_power = epochs[epochs.metadata.mindstate == ms].compute_psd(
+                    method = method,
+                    fmin = fmin, 
+                    fmax = fmax,
+                    n_fft = n_fft,
+                    n_overlap = n_overlap,
+                    n_per_seg = n_per_seg,
+                    window = window,
+                    picks = channels
                     )
+            this_metadata = metadata.loc[metadata.mindstate == ms]
+            this_behav = sub_behav.loc[sub_behav.mindstate == ms]
+            
+            for i_epoch in range(len(this_metadata)) :
                 
-                init_flat_spec = fm.power_spectrum - init_ap_fit
+                this_power = temp_power[i_epoch]   
+                this_sleepi = this_metadata.sleepiness.iloc[i_epoch]           
+                this_vol = this_metadata.voluntary.iloc[i_epoch]     
+                this_block = this_metadata.nblock.iloc[i_epoch]     
+                this_probe = this_metadata.nprobe.iloc[i_epoch]     
                 
-                abs_bandpower_ch = {
-                     f"abs_{band}": np.nanmean(init_flat_spec[
-                             np.logical_and(freqs >= borders[0], freqs <= borders[1])
-                             ], axis = 0) for band, borders in freq_bands.items()}
+                this_rt_go = this_behav.rt_go.iloc[i_epoch]     
+                this_miss = this_behav.miss.iloc[i_epoch]     
+                this_false_alarms = this_behav.false_alarms.iloc[i_epoch]     
+                this_std_rtgo = this_behav.std_rtgo.iloc[i_epoch]     
                 
-                total_power = np.sum(
-                    [abs_bandpower_ch[f"abs_{band}"] 
-                     for band, borders in freq_bands.items()]
-                    )
+                for i_ch, channel in enumerate(channels):
                 
-                rel_bandpower_ch = {
-                    f"rel_{band}" : abs_bandpower_ch[f"abs_{band}"] / total_power
-                    for band in freq_bands.keys()
-                    }
-                
-                bigdic['sub_id'].append(sub_id)
-                bigdic['subtype'].append(subtype)
-                bigdic['mindstate'].append(ms)
-                bigdic['channel'].append(channel)
-                bigdic['sleepiness'].append(this_sleepi)
-                bigdic['voluntary'].append(this_vol)
-                bigdic['n_block'].append(this_block)
-                bigdic['n_probe'].append(this_probe)
-                for col in cols_power :
-                    if col.startswith('abs'):
-                        bigdic[col].append(abs_bandpower_ch[col])
-                    if col.startswith('rel'):
-                        bigdic[col].append(rel_bandpower_ch[col])
-                
-df = pd.DataFrame.from_dict(bigdic)
+                    psd = lowess(np.squeeze(
+                        this_power.copy().pick(channel).get_data()), 
+                        freqs, 0.075)[:, 1]
+                    
+                    if not psd.shape:
+                        input('inspect')
+                    
+                    if np.any(psd < 0) :
+                        for id_0 in np.where(psd<0)[0] :
+                            psd[id_0] = abs(psd).min()
+                            
+                    fm = FOOOF(peak_width_limits = [.5, 6], aperiodic_mode="fixed")
+                    fm.add_data(freqs, psd)
+                    fm.fit()
+                    
+                    if fm.r_squared_ < .95 : continue
+                    if fm.error_ > .1 : continue
+                    
+                    init_ap_fit = gen_aperiodic(
+                        fm.freqs, 
+                        fm._robust_ap_fit(fm.freqs, fm.power_spectrum)
+                        )
+                    
+                    init_flat_spec = fm.power_spectrum - init_ap_fit
+                    
+                    abs_bandpower_ch = {
+                         f"abs_{band}": np.nanmean(init_flat_spec[
+                                 np.logical_and(freqs >= borders[0], freqs <= borders[1])
+                                 ], axis = 0) for band, borders in freq_bands.items()}
+                    
+                    total_power = np.sum(
+                        [abs_bandpower_ch[f"abs_{band}"] 
+                         for band, borders in freq_bands.items()]
+                        )
+                    
+                    rel_bandpower_ch = {
+                        f"rel_{band}" : abs_bandpower_ch[f"abs_{band}"] / total_power
+                        for band in freq_bands.keys()
+                        }
+                                        
+                    sub_dic['sub_id'].append(sub_id)
+                    sub_dic['subtype'].append(subtype)
+                    sub_dic['mindstate'].append(ms)
+                    sub_dic['channel'].append(channel)
+                    sub_dic['daytime'].append(daytime)
+                    sub_dic['sleepiness'].append(this_sleepi)
+                    sub_dic['voluntary'].append(this_vol)
+                    sub_dic['n_block'].append(this_block)
+                    sub_dic['n_probe'].append(this_probe)
+                    sub_dic['rt_go'].append(this_rt_go)
+                    sub_dic['miss'].append(this_miss)
+                    sub_dic['false_alarms'].append(this_false_alarms)
+                    sub_dic['std_rtgo'].append(this_std_rtgo)
+                    
+                    for col in cols_power :
+                        if col.startswith('abs'):
+                            sub_dic[col].append(abs_bandpower_ch[col])
+                        if col.startswith('rel'):
+                            sub_dic[col].append(rel_bandpower_ch[col])
+        
+        subdf = pd.DataFrame.from_dict(sub_dic) 
+        subdf.to_csv(this_savename)
+        all_df.append(subdf)
+        del subdf
+
+df = pd.concat(all_df)
 df.to_csv(os.path.join(bandpowerPath, "bandpower.csv"))
 
 # %% Plotting (should be on another script for cleanness)

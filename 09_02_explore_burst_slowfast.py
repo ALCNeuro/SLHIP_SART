@@ -39,7 +39,7 @@ figs_path = os.path.join(burstPath, "figs")
 # epochs_files  = glob(os.path.join(cleanDataPath, "*epo.fif"))
 
 channels = np.array(config.eeg_channels)
-palette = ["#8d99ae", "#d00000", "#ffb703"]
+palette = ["#8d99ae", "#d00000"]
 
 # %% df load
 
@@ -47,7 +47,7 @@ palette = ["#8d99ae", "#d00000", "#ffb703"]
 df = pd.read_csv(os.path.join(
     burstPath, 
     "features", 
-    "All_Bursts_features.csv"
+    "All_Bursts_features_slow_fast.csv"
     ))
 del df['Unnamed: 0']
 
@@ -74,7 +74,7 @@ mean_df = mean_df.groupby(
 # %% Topo | Density | HS, NT1
 
 feature = 'density'
-burst_types = ['Alpha', 'Theta']
+burst_types = ['slow_theta', 'fast_theta', 'slow_alpha', 'fast_alpha']
 
 fig, ax = plt.subplots(
     nrows = 2, 
@@ -147,13 +147,13 @@ for i_bt, burst_type in enumerate(burst_types) :
     fig.tight_layout()
     
     figsavename = os.path.join(
-        figs_path, 'NT1_CTL', f'topo_{feature}_subtypes.png'
+        figs_path, 'slow_fast', f'topo_{feature}_subtypes.png'
         )
     plt.savefig(figsavename, dpi = 300)
     
 # %% Topo | LME - Subtype ME
 
-burst_types = ['Alpha', 'Theta']
+burst_types = ['slow_theta', 'fast_theta', 'slow_alpha', 'fast_alpha']
 
 feature = "density"
 
@@ -204,23 +204,31 @@ for i_bt, burst_type in enumerate(burst_types):
     fig.tight_layout()
         
 plt.savefig(os.path.join(
-    figs_path, 'NT1_CTL', f'LME_topo_{feature}_ME_group_averagedblocks.png'
+    figs_path, 'slow_fast', f'LME_topo_{feature}_ME_group_averagedblocks.png'
     ), dpi = 300)
 
 # %% Diff MS within GROUP
 
 vlims = {
-    "Alpha" : {
+    "slow_alpha" : {
         "HS" : (-3, 3),
         "N1" : (-7.5, 7.5)
         },
-    "Theta" : {
+    "fast_alpha" : {
+        "HS" : (-3, 3),
+        "N1" : (-7.5, 7.5)
+        },
+    "slow_theta" : {
+        "HS" : (-3, 3),
+        "N1" : (-4, 4)
+        },
+    "fast_theta" : {
         "HS" : (-3, 3),
         "N1" : (-4, 4)
         }
     }
 
-kindaburst = "Theta"
+kindaburst = "fast_theta"
 
 this_df = df.loc[df.burst_type==kindaburst]
 
@@ -273,7 +281,7 @@ for i_s, subtype in enumerate(subtypes) :
             mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
                         linewidth=0, markersize=8),
             cmap = "coolwarm",
-            vlim = vlims[kindaburst][subtype]
+            # vlim = vlims[kindaburst][subtype]
             )
         if i_c == len(contrasts) - 1 :
             fig.colorbar(im, cax = cax, orientation = 'vertical')
@@ -282,7 +290,7 @@ for i_s, subtype in enumerate(subtypes) :
     # fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
     fig.tight_layout()
     figsavename = os.path.join(
-        figs_path, 'NT1_CTL', f'LME_topo_{kindaburst}_{interest}_ME_MS_{subtype}.png'
+        figs_path, 'slow_fast', f'LME_topo_{kindaburst}_{interest}_ME_MS_{subtype}.png'
         )
     plt.savefig(figsavename, dpi = 300)
 
@@ -292,7 +300,8 @@ vlims = {
     "HS" : (-3, 3),
     "N1" : (-4, 4)
     }
-this_df = df.loc[df.burst_type=="Theta"]
+kindaburst = "slow_theta"
+this_df = df.loc[df.burst_type==kindaburst]
 
 interest = 'density'
 contrasts = [("HALLU", "ON"), ("HALLU", "MW"), ("HALLU", "MB"), ("HALLU", "FORGOT")]
@@ -348,7 +357,7 @@ for i_s, subtype in enumerate(subtypes) :
             mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
                         linewidth=0, markersize=8),
             cmap = "coolwarm",
-            vlim = vlims[subtype]
+            # vlim = vlims[subtype]
             )
         if i_c == len(contrasts) - 1 :
             fig.colorbar(im, cax = cax, orientation = 'vertical')
@@ -358,16 +367,16 @@ for i_s, subtype in enumerate(subtypes) :
 # fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
     fig.tight_layout()
     figsavename = os.path.join(
-        figs_path, 'NT1_CTL', f'LME_topo_{feature}_ME_MS_{subtype}_VS_HALLU.png'
+        figs_path, 'slow_fast', f'LME_topo_{feature}_ME_MS_{subtype}_VS_HALLU.png'
         )
     plt.savefig(figsavename, dpi = 300)
 
 # %% Topo | LME - MS behav
 
-kindaburst = "Theta"
+kindaburst = "Alpha"
 behav_interest = "false_alarms"
 burst_interest = "density"
-group_oi = "N1"
+group_oi = "HS"
 
 compa_df = df.loc[
     (df.subtype==group_oi)
@@ -408,7 +417,7 @@ im, cm = mne.viz.plot_topomap(
     mask = np.asarray(temp_pval) <= 0.05,
     mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
                 linewidth=0, markersize=8),
-    cmap = "coolwarm",
+    cmap = "viridis",
     # vlim = (-4, 4)
     )
 fig.colorbar(im, cax = cax, orientation = 'vertical')
@@ -416,7 +425,7 @@ fig.colorbar(im, cax = cax, orientation = 'vertical')
 ax.set_title(f"{behav_interest} ~ {burst_interest}", fontweight = "bold", fontsize = 12)
 fig.tight_layout()
 plt.savefig(os.path.join(
-    figs_path, 'NT1_CTL', f'LME_{behav_interest}_burst_{kindaburst}_{burst_interest}_in_{group_oi}.png'
+    figs_path, 'slow_fast', f'LME_{behav_interest}_burst_{kindaburst}_{burst_interest}_in_{group_oi}.png'
     ), dpi = 300)   
 
 # %% Corrected | ME Group Burst
@@ -430,7 +439,7 @@ montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
 num_permutations = 200    # adjust as needed
 min_cluster_size = 2     # keep clusters with at least 2 channels
 
-burst_type = 'Theta'
+burst_type = 'Alpha'
 
 feature = "density"
 
@@ -457,215 +466,6 @@ if os.path.exists(save_fname) :
 
     orig_tvals           = big_dic['orig_tvals']
     channels             = big_dic['channels']
-    significant_clusters = big_dic['significant_clusters']
-    
-else : 
-
-    model = f"{feature} ~ C(subtype, Treatment('HS'))" 
-    interest = "C(subtype, Treatment('HS'))[T.N1]"
-    to_permute = "subtype"
-    
-    clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
-        subdf,
-        model, 
-        interest,
-        to_permute,
-        num_permutations,
-        neighbours,     
-        clus_alpha,
-        min_cluster_size,
-        channels
-        )
-    
-    # Determine significant clusters based on permutation statistics.
-    significant_clusters = config.identify_significant_clusters(
-        clusters_pos, 
-        clusters_neg, 
-        perm_stats_pos, 
-        perm_stats_neg, 
-        montecarlo_alpha,
-        num_permutations
-        )
-    
-    # —––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-    # Save everything for later use (before you do the plotting!)
-    out = {
-        'clusters_pos':            clusters_pos,
-        'clusters_neg':            clusters_neg,
-        'perm_stats_pos':          perm_stats_pos,
-        'perm_stats_neg':          perm_stats_neg,
-        'orig_pvals':              orig_pvals,
-        'orig_tvals':              orig_tvals,
-        'significant_clusters':    significant_clusters
-    }
-    
-    
-    os.makedirs(os.path.dirname(save_fname), exist_ok=True)
-    with open(save_fname, 'wb') as fp:
-        pickle.dump(out, fp)
-    
-    print(f"Saved permutation‐cluster results to {save_fname}")
-    
-# Build the mask from these merged clusters
-significant_mask = np.zeros(len(channels), dtype=bool)
-for sign, clust_labels, stat, pval in significant_clusters:
-    for ch in clust_labels:
-        idx = channels.index(ch)
-        significant_mask[idx] = True
-
-# Visualize using the original t-values
-
-config.visualize_clusters(
-    orig_tvals, channels, significant_mask, info, savepath, vlims
-    )
-
-# Optionally, print the significant clusters for inspection.
-for s in significant_clusters:
-    print(f"Sign: {s[0]}, Channels: {sorted(list(s[1]))}, Cluster Stat: {s[2]:.3f}, p-value: {s[3]:.3f}")
-    
-    
-# %% Corrected Within Group - ME MS Burst
-
-info = epochs.info  # or info from epochs
-neighbours = config.prepare_neighbours_from_layout(info, ch_type='eeg')
-
-clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
-montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
-num_permutations = 200    # adjust as needed
-min_cluster_size = 2     # keep clusters with at least 2 channels
-
-vlims = (-3, 3)
-subtype = "N1"
-behav_interest = "miss"
-burst_interest = "density"
-burst_type = 'Theta'
-
-save_fname = os.path.join(
-    figs_path,
-    "NT1_CTL",
-    f"CPerm_{num_permutations}_ME_MS_{burst_type}_{subtype}_{burst_interest}_{behav_interest}.pkl"
-    )
-savepath = os.path.join(
-    figs_path,
-    "NT1_CTL",
-    f"CPerm_{num_permutations}_ME_MS_{burst_type}_{subtype}_{burst_interest}_{behav_interest}.png"
-    )
-
-this_df = df[
-    ['sub_id', 'subtype', 'channel', burst_interest, behav_interest]].loc[
-    (df.burst_type == burst_type)
-    & (df.subtype == subtype)
-    ]
-
-if os.path.exists(save_fname) :
-    big_dic = pd.read_pickle(save_fname)
-
-    orig_tvals           = big_dic['orig_tvals']
-    channels             = big_dic['channels']
-    significant_clusters = big_dic['significant_clusters']
-    print(significant_clusters)
-    
-else : 
-
-    model = f"{behav_interest} ~ {burst_interest}" 
-    interest = burst_interest
-    to_permute = burst_interest
-    
-    clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
-        this_df,
-        model, 
-        interest,
-        to_permute,
-        num_permutations,
-        neighbours,     
-        clus_alpha,
-        min_cluster_size,
-        channels
-        )
-    
-    # Determine significant clusters based on permutation statistics.
-    significant_clusters = config.identify_significant_clusters(
-        clusters_pos, 
-        clusters_neg, 
-        perm_stats_pos, 
-        perm_stats_neg, 
-        montecarlo_alpha,
-        num_permutations
-        )
-    
-    # —––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-    # Save everything for later use (before you do the plotting!)
-    out = {
-        'clusters_pos':            clusters_pos,
-        'clusters_neg':            clusters_neg,
-        'perm_stats_pos':          perm_stats_pos,
-        'perm_stats_neg':          perm_stats_neg,
-        'orig_pvals':              orig_pvals,
-        'orig_tvals':              orig_tvals,
-        'significant_clusters':    significant_clusters
-    }
-    
-    
-    os.makedirs(os.path.dirname(save_fname), exist_ok=True)
-    with open(save_fname, 'wb') as fp:
-        pickle.dump(out, fp)
-    
-    print(f"Saved permutation‐cluster results to {save_fname}")
-    
-# Build the mask from these merged clusters
-significant_mask = np.zeros(len(channels), dtype=bool)
-for sign, clust_labels, stat, pval in significant_clusters:
-    for ch in clust_labels:
-        idx = channels.index(ch)
-        significant_mask[idx] = True
-
-# Visualize using the original t-values
-
-config.visualize_clusters(
-    orig_tvals, channels, significant_mask, info, savepath, vlims
-    )
-
-# Optionally, print the significant clusters for inspection.
-for s in significant_clusters:
-    print(f"Sign: {s[0]}, Channels: {sorted(list(s[1]))}, Cluster Stat: {s[2]:.3f}, p-value: {s[3]:.3f}")
-    
-# %% Corrected | ME Behav Burst
-
-info = epochs.info  # or info from epochs
-neighbours = config.prepare_neighbours_from_layout(info, ch_type='eeg')
-
-vlims = (-2.5, 2.5)
-clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
-montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
-num_permutations = 200    # adjust as needed
-min_cluster_size = 2     # keep clusters with at least 2 channels
-
-burst_type = 'Theta'
-
-feature = "density"
-
-save_fname = os.path.join(
-    figs_path,
-    "NT1_CTL",
-    f"CPerm_{num_permutations}_{burst_type}_{feature}_ME_Group.pkl"
-    )
-savepath = os.path.join(
-    figs_path,
-    "NT1_CTL",
-    f"CPerm_{num_permutations}_{burst_type}_{feature}_ME_Group.png"
-    )
-
-subdf = df[
-    ['sub_id', 'subtype', 'channel', feature]
-    ].loc[
-    (df.subtype.isin(['N1', 'HS']))
-    & (df.burst_type == burst_type)
-    ].dropna()
-
-if os.path.exists(save_fname) :
-    big_dic = pd.read_pickle(save_fname)
-
-    orig_tvals           = big_dic['orig_tvals']
     significant_clusters = big_dic['significant_clusters']
     
 else : 
@@ -731,3 +531,110 @@ config.visualize_clusters(
 # Optionally, print the significant clusters for inspection.
 for s in significant_clusters:
     print(f"Sign: {s[0]}, Channels: {sorted(list(s[1]))}, Cluster Stat: {s[2]:.3f}, p-value: {s[3]:.3f}")
+    
+    
+# %% Corrected Within Group - ME MS Burst
+
+info = epochs.info  # or info from epochs
+
+clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
+montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
+num_permutations = 200    # adjust as needed
+min_cluster_size = 2     # keep clusters with at least 2 channels
+
+vlims = (-3.5, 3.5)
+subtype = "HS"
+contrast = ["FORGOT", "ON"]
+burst_type = 'Theta'
+feature = "density"
+
+save_fname = os.path.join(
+    figs_path,
+    "NT1_CTL",
+    f"CPerm_{num_permutations}_ME_MS_{burst_type}_{subtype}_{feature}_{contrast[1]}_vs_{contrast[0]}.pkl"
+    )
+savepath = os.path.join(
+    figs_path,
+    "NT1_CTL",
+    f"CPerm_{num_permutations}_ME_MS_{burst_type}_{subtype}_{feature}_{contrast[1]}_vs_{contrast[0]}.png"
+    )
+
+this_df = df[
+    ['sub_id', 'subtype', 'mindstate', 'channel', f'{feature}']].loc[
+    (df.burst_type == burst_type)
+    & (df.subtype == subtype)
+    & (df.mindstate.isin(contrast))
+    ]
+
+if os.path.exists(save_fname) :
+    big_dic = pd.read_pickle(save_fname)
+
+    orig_tvals           = big_dic['orig_tvals']
+    channels             = big_dic['channels']
+    significant_clusters = big_dic['significant_clusters']
+    
+else : 
+
+    model = f"{feature} ~ C(mindstate, Treatment('{contrast[0]}'))" 
+    interest = f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"
+    to_permute = "mindstate"
+    
+    clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals, channels = config.permute_and_cluster(
+        this_df,
+        model, 
+        interest,
+        to_permute,
+        num_permutations,
+        neighbours,     
+        clus_alpha,
+        min_cluster_size
+        )
+    
+    # Determine significant clusters based on permutation statistics.
+    significant_clusters = config.identify_significant_clusters(
+        clusters_pos, 
+        clusters_neg, 
+        perm_stats_pos, 
+        perm_stats_neg, 
+        montecarlo_alpha,
+        num_permutations
+        )
+    
+    # —––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+    # Save everything for later use (before you do the plotting!)
+    out = {
+        'clusters_pos':            clusters_pos,
+        'clusters_neg':            clusters_neg,
+        'perm_stats_pos':          perm_stats_pos,
+        'perm_stats_neg':          perm_stats_neg,
+        'orig_pvals':              orig_pvals,
+        'orig_tvals':              orig_tvals,
+        'channels':                channels,
+        'significant_clusters':    significant_clusters
+    }
+    
+    
+    os.makedirs(os.path.dirname(save_fname), exist_ok=True)
+    with open(save_fname, 'wb') as fp:
+        pickle.dump(out, fp)
+    
+    print(f"Saved permutation‐cluster results to {save_fname}")
+    
+# Build the mask from these merged clusters
+significant_mask = np.zeros(len(channels), dtype=bool)
+for sign, clust_labels, stat, pval in significant_clusters:
+    for ch in clust_labels:
+        idx = channels.index(ch)
+        significant_mask[idx] = True
+
+# Visualize using the original t-values
+
+config.visualize_clusters(
+    orig_tvals, channels, significant_mask, info, savepath, vlims
+    )
+
+# Optionally, print the significant clusters for inspection.
+for s in significant_clusters:
+    print(f"Sign: {s[0]}, Channels: {sorted(list(s[1]))}, Cluster Stat: {s[2]:.3f}, p-value: {s[3]:.3f}")
+    
+    

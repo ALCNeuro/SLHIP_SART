@@ -511,19 +511,19 @@ def cluster_significant_channels(
         for i in range(len(channels))
         if (pvals[i] < clus_alpha)
            and ((sign=='pos' and tvals[i]>0) or (sign=='neg' and tvals[i]<0))
-    }
+           }
     # Quick neighbour lookup: channel -> set of its neighbours (intersected with candidates)
     neigh_map = {
         n['label']: set(n['neighblabel']).intersection(candidate_set)
         for n in neighbours
         if n['label'] in candidate_set
-    }
+        }
     # 2) Seed initial one‐channel clusters
     clusters = []
     for ch in candidate_set:
         clusters.append({
             'labels': {ch},
-            'tstats': [tvals[np.where(channels == ch)[0][0]]]
+            'tstats': [tvals[np.where(np.asarray(channels) == ch)[0][0]]]
         })
     
     # 3) Iteratively merge any two clusters that touch
@@ -786,18 +786,18 @@ def visualize_clusters(tvals, channels, significant_mask, info, savepath, vlims 
             markerfacecolor='w',
             markeredgecolor='k',
             linewidth=0,
-            markersize=8
+            markersize=10
         ),
         cmap="coolwarm",
         vlim = vlims
         )
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.25)
-    cax.set_title("t-values", fontsize=10)
+    cax.set_title("t-values", fontsize=12, pad = 10)
     cb = fig.colorbar(im, cax=cax)
     cb.ax.tick_params(labelsize=10)
     fig.colorbar(im, cax=cax)
-    fig.tight_layout()
+    fig.tight_layout(pad=1)
     # ax.set_title("Interaction Effect", fontweight="bold")
     # fig.suptitle("T-values, Cluster Permutation Corrected", fontsize="xx-large", fontweight="bold")
     plt.savefig(savepath, dpi = 300)

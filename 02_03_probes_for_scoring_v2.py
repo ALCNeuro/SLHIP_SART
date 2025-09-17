@@ -54,7 +54,7 @@ import uuid
 # This will allow to no be disturbed by the script running later on
 import matplotlib
 matplotlib.use('Agg')
-# matplotlib.use('QtAgg')
+matplotlib.use('QtAgg')
 
 import locale
 locale.setlocale(locale.LC_TIME, 'en_US.UTF-8')

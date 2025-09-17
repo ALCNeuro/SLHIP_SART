@@ -72,10 +72,8 @@ sub_ids = np.unique(np.array(
 ms_keydic = {}
 
 # subtype_palette = ["#4a5759", "#bf0603", "#ffc300"]
-subtype_palette = ["#8d99ae", "#d00000"]
+subtype_palette = ["#8d99ae", "#EDA53A"]
 ms_palette = ["#FFC000", "#00B050", "#0070C0", "#7030A0", "#000000"]
-
-demographics = pd.read_excel("/Users/arthurlecoz/Library/CloudStorage/OneDrive-ICM/PhD/Experiments/SLHIP/Administrative/SLHIP_INFO_ppt.xlsx")
 
 # subtype_palette = ["#8d99ae", "#d00000"]
 
@@ -204,7 +202,7 @@ df.to_csv(os.path.join(behavpath, "VDF_dfBEHAV_SLHIP_20sbProbe.csv"))
 
 # %% DF Manip
 
-sub_df = df.loc[(df.subtype != 'HI') & (df.mindstate != 'MISS') & (df.mindstate != "MW_E")]
+sub_df = df.loc[(df.subtype != 'N1') & (df.mindstate != 'MISS') & (df.mindstate != "MW_E")]
 
 total_block = []
 total_probe = []
@@ -226,7 +224,7 @@ for sub_id in sub_df.sub_id.unique() :
 sub_df['total_block'] = total_block
 sub_df['total_probe'] = total_probe
 
-sub_df.to_csv(os.path.join(behavpath, "NT1_CTL", "df_20s_behav.csv"))
+sub_df.to_csv(os.path.join(behavpath, "HI_CTL", "df_20s_behav.csv"))
 
 block_df = sub_df[['sub_id', 'subtype', 'nblock', 'rt_go', 'rt_nogo','std_rtgo',
        'std_rtnogo', 'hits', 'miss', 'correct_rejections', 'false_alarms', 
@@ -255,7 +253,7 @@ mindstate_percentages = mindstate_counts.div(mindstate_counts.sum(axis=1), axis=
 
 # Create radar plot for each subtype
 # subtypes = ['HS', 'N1', 'HI']
-subtypes = ['HS', 'N1']
+subtypes = ['HS', 'HI']
 kind_thought = list(sub_df.mindstate.unique())
 full_thought = ["ON", "MW", "MB", "Forgot", "Hallucination"]
 # kind_thought.remove('MISS')  # Remove 'MISS' from the radar plot
@@ -263,7 +261,7 @@ full_thought = ["ON", "MW", "MB", "Forgot", "Hallucination"]
 max_value = mindstate_percentages.max().max()
 
 # Radar plot settings
-colors = {'HS': '#8d99ae', 'N1': '#d00000', 'HI' : '#539F41'}
+colors = {'HS': '#8d99ae', 'N1': '#d00000', 'HI' : '#EDA53A'}
 
 fig, ax = plt.subplots(subplot_kw=dict(polar=True), figsize=(3, 3), dpi=150)
 for subtype in subtypes:
@@ -294,7 +292,7 @@ ax.spines['polar'].set_visible(False)
 
 fig.tight_layout()
 plt.savefig(
-    os.path.join(behavpath, "NT1_CTL", "radar_plot_mindstates.png"), 
+    os.path.join(behavpath, "HI_CTL", "radar_plot_mindstates.png"), 
     dpi=200
     )
 plt.show()
@@ -302,7 +300,6 @@ plt.show()
 # %% RadarPlot | Behavioral Diff MS
 
 radar_palette = ["#FFC000", "#00B050", "#7030A0", "#0070C0", "#000000"]
-
 
 df_rplot = sub_df[[
     'rt_go', 'std_rtgo', 'miss','false_alarms','mindstate', 'sleepiness']
@@ -402,13 +399,13 @@ for ax, mindstate, i in zip(axes, (["ON", "MW_I", "MW_H", "MB", "FORGOT"]), rang
     
 plt.tight_layout(pad=2)
 plt.show()
-plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
+plt.savefig(os.path.join(behavpath, "HI_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
 
 # %% RadarPlot | Behavioral Per GRP -  MS
 
 radar_palette = ["#FFC000", "#00B050", "#7030A0", "#0070C0", "#000000"]
 
-subtypes = ["HS", "N1"]
+subtypes = ["HS", "HI"]
 df_rplot = sub_df[[
     'rt_go', 'std_rtgo', 'miss','false_alarms', 'subtype', 'mindstate', 'sleepiness']
     ].copy()
@@ -517,7 +514,7 @@ for idx_st, st in enumerate(subtypes) :
 plt.tight_layout(pad=2)
 plt.show()
 plt.savefig(
-    os.path.join(behavpath, "NT1_CTL", "Grp_RadarPlots_MS_Behav.png"), 
+    os.path.join(behavpath, "HI_CTL", "Grp_RadarPlots_MS_Behav.png"), 
     dpi=300
     )
 
@@ -539,7 +536,7 @@ fig, axes = plt.subplots(
     subplot_kw={'projection':'polar'}
     )
 
-for i, grp in enumerate(['HS','N1']):
+for i, grp in enumerate(['HS','HI']):
     ax = axes[i]
     # draw ON/FORGET reference exactly the same way...
     ax.plot(angles, min_padded,      '--', color='gray',   linewidth=1)
@@ -573,7 +570,7 @@ for i, grp in enumerate(['HS','N1']):
     # ax.set_title(grp, font = bold_font, fontsize=14)
 plt.tight_layout(pad=2)
 # fig.tight_layout()
-plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_ST_Behav_noticks.png"), dpi=300)
+plt.savefig(os.path.join(behavpath, "HI_CTL", "RadarPlots_ST_Behav_noticks.png"), dpi=300)
     
 
 # %% RadarPlot | Behavioral Diff MS
@@ -703,7 +700,7 @@ for ax, mindstate, i in zip(axes, (["ON", "MW_I", "MB", "MW_H", "FORGOT"]), rang
 plt.suptitle("Five Mindstates (with ON≈0.1 & FORGOT≈0.9 as Thresholds)", y=1.05)
 # plt.tight_layout()
 plt.show()
-plt.savefig(os.path.join(behavpath, "NT1_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
+plt.savefig(os.path.join(behavpath, "HI_CTL", "RadarPlots_MS_Behav.png"), dpi=300)
 
 # %% ready fig ms %
 
@@ -731,7 +728,7 @@ for sub_id in sub_df.sub_id.unique() :
 
 df_mindstate = pd.DataFrame.from_dict(dic)
 df_mindstate.to_csv(os.path.join(
-    behavpath, "NT1_CTL", "per_ms.csv"
+    behavpath, "HI_CTL", "per_ms.csv"
     ))
 
 # %% fig ms % Subtype
@@ -742,10 +739,10 @@ data = df_mindstate[['sub_id', 'subtype', 'mindstate', 'percentage']].groupby(
 y = 'percentage'
 x = "mindstate"
 # order = ['ON', 'MW_I', 'MB', 'MW_H']
-order = ['ON', 'MW_H', 'MW_I', 'MB', 'FORGOT']
+order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 # order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT', 'MW_E']
 hue = "subtype"
-hue_order = ['HS', 'N1']    
+hue_order = ['HS', 'HI']    
          
 fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (5, 4))
      
@@ -786,7 +783,7 @@ ax.set_xlabel('Mindstate', size = 18, font = bold_font)
 ax.set_ylim(0, 1)
 ax.set_xticks(
     ticks = np.arange(0, 5, 1), 
-    labels = ["ON", "HA", "MW", "MB", "FG"],
+    labels = ["ON", "MW", "MB", "HA", "FG"],
     # ticks = [np.arange(0, 5, 1)], 
     # labels = [" ", " ", " ", " ", " "],
     font = font, 
@@ -799,7 +796,7 @@ ax.set_yticks(
 sns.despine()
 fig.tight_layout()
 
-plt.savefig(os.path.join(behavpath, "NT1_CTL", "point_strip_per_mindstates_by_subtype.png"), dpi=200)
+plt.savefig(os.path.join(behavpath, "HI_CTL", "point_strip_per_mindstates_by_subtype.png"), dpi=200)
 
 # %% Ready figure % Sleepi
 
@@ -825,36 +822,11 @@ for sub_id in df.sub_id.unique() :
                         )/len(df_ms.sleepiness))
 
 df_sleepi = pd.DataFrame.from_dict(dic)
-df_sleepi.to_csv("/Volumes/DDE_ALC/PhD/SLHIP/02_BehavResults/NT1_CTL/sleepiness_df.csv")
-
-# %% Ready figure % Voluntary
-
-coi = ['sub_id', 'subtype', 'daytime', 'mindstate', 'voluntary_per']
-dic = {c : [] for c in coi}
-
-for sub_id in df.sub_id.unique() :    
-    this_df = df.loc[df['sub_id'] == sub_id]
-    for dt in this_df.daytime.unique() :
-        df_dt = this_df.loc[this_df['daytime'] == dt]
-        for ms in ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT'] :
-            if ms not in df_dt.mindstate.unique(): continue
-            df_ms = df_dt.loc[df_dt.mindstate==ms]
-            
-            dic['sub_id'].append(sub_id)
-            dic['subtype'].append(sub_id.split('_')[1])
-            dic['daytime'].append(dt)
-            dic['mindstate'].append(ms)
-            dic['voluntary_per'].append(
-                len(df_ms.voluntary.loc[
-                    (df_ms['voluntary'] == 1)]
-                    )/len(df_ms.voluntary))
-
-df_vol = pd.DataFrame.from_dict(dic)
-df_vol.to_csv("/Volumes/DDE_ALC/PhD/SLHIP/02_BehavResults/NT1_CTL/voluntary_df.csv")
+df_sleepi.to_csv("/Volumes/DDE_ALC/PhD/SLHIP/02_BehavResults/HI_CTL/sleepiness_df.csv")
 
 # %% Per Sleepi Pointplot [ST Diff]
 
-data = df_sleepi.loc[df_sleepi.subtype != "HI"].copy().drop(
+data = df_sleepi.loc[df_sleepi.subtype != "N1"].copy().drop(
     columns=["daytime", 'mindstate']
     ).groupby(["sub_id", 'subtype', 'sleepiness']).mean()
 
@@ -862,7 +834,7 @@ x = 'sleepiness'
 order = np.linspace(1, 9, 9)
 y = 'percentage'
 hue = 'subtype'
-hue_order = ['HS', 'N1']
+hue_order = ['HS', 'HI']
 
 fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (5, 4))
 
@@ -916,7 +888,7 @@ fig.tight_layout(pad = 1)
 
 plt.savefig(
     os.path.join(behavpath, 
-                 "NT1_CTL", 
+                 "HI_CTL", 
                  "point_strip_sleepiness_ms_subtype.png"), 
     dpi=200 
     )
@@ -1057,7 +1029,7 @@ data = this_df
 x = 'mindstate'
 order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 hue = 'subtype'
-hue_order = ['HS', 'N1']
+hue_order = ['HS', 'HI']
 
 fig, ax = plt.subplots(nrows = 4, ncols = 1, figsize = (3, 8), sharex = True)
 
@@ -1182,7 +1154,7 @@ for i in range(4):
 fig.tight_layout(pad=1)
 
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "miss_fa_rt_subtype_n1.png"), 
+    behavpath, "HI_CTL", "miss_fa_rt_subtype.png"), 
     dpi=200
     )
 
@@ -1220,7 +1192,7 @@ data = this_df
 x = 'mindstate'
 order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 hue = 'subtype'
-hue_order = ['HS', 'N1']
+hue_order = ['HS', 'HI']
 
 for feat in feats :
     fig, ax = plt.subplots(nrows = 1, ncols = 1, figsize = (3, 3))
@@ -1275,7 +1247,7 @@ for feat in feats :
     ax.set_ylabel(labels[feat], font = bold_font, size = 16)
     
     plt.savefig(os.path.join(
-        behavpath, "NT1_CTL", f"{feat}_boxplot_groupdiff.png"
+        behavpath, "HI_CTL", f"{feat}_boxplot_groupdiff.png"
         ), dpi=300)
     
 # %% Separate plots [MS diff]
@@ -1353,12 +1325,12 @@ for feat in feats :
     fig.tight_layout()
     
     plt.savefig(os.path.join(
-        behavpath, "NT1_CTL", f"{feat}_boxplot_msonly.png"
+        behavpath, "HI_CTL", f"{feat}_boxplot_msonly.png"
         ), dpi=300)
     
 # %% Behaviour | ME MS + Stripp Group
 
-feats = ["sleepiness", "voluntary_per", "miss", "false_alarms", "rt_go", "std_rtgo"]
+feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
 
 df_grouped = (sub_df
     [['sub_id','subtype','rt_go','rt_nogo','std_rtgo','hits','miss',
@@ -1366,34 +1338,27 @@ df_grouped = (sub_df
     .groupby(['sub_id','subtype','mindstate'], as_index=False)
     .mean())
 
-df_vol_av = df_vol.copy().drop(columns = 'daytime').groupby(
-    ["sub_id", "subtype", "mindstate"], as_index=False
-    ).mean()
-
 minmax = {
     "sleepiness": [1, 9],
-    "voluntary_per": [0, 1],
     "miss": [0, 100],
     "false_alarms": [0, 100],
     "rt_go": [0.2, 0.8],
     "std_rtgo": [0, 0.3]
-    }
+}
 labels = {
     "sleepiness": "Sleepiness",
-    "voluntary_per": "Voluntary Mindstate (%)",
     "miss": "Misses (%)",
     "false_alarms": "False Alarms (%)",
     "rt_go": "Reaction Time (s)",
     "std_rtgo": "SD of RT (s)"
-    }
+}
 ticks = {
     "sleepiness": [np.linspace(1,9,9), np.arange(1,10)],
-    "voluntary_per": [np.linspace(0,1,6), np.round(np.linspace(0,100,6),0).astype(int)],
     "miss": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
     "false_alarms": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
     "rt_go": [np.linspace(.2,.8,7), np.round(np.linspace(.2,.8,7),2)],
     "std_rtgo": [np.linspace(0,.3,4), np.round(np.linspace(0,.3,4),2)]
-    }
+}
 
 mind_order = ['ON','MW_I','MB','MW_H','FORGOT']
 group_palette = subtype_palette      
@@ -1401,65 +1366,34 @@ box_color = 'gray'
 
 for feat in feats:
     fig, ax = plt.subplots(figsize=(5,4))
-    
-    if feat == "voluntary_per" :
-        sns.boxplot(
-            data=df_vol_av,
-            x='mindstate', y=feat,
-            order=mind_order,
-            palette=['k' for i in range(len(mind_order))],
-            width=0.18,
-            fliersize=0,
-            linewidth = 2,
-            fill=False,
-            ax=ax,
-            legend=None
-            )
-        
-        sns.violinplot(
-            data=df_vol_av,
-            x='mindstate', y=feat,
-            hue='subtype', hue_order=['HS','N1'],
-            palette=group_palette,
-            # linecolor="w",
-            gap=.6, 
-            split=True,
-            alpha=0.6,
-            inner=None,
-            fill=False,
-            ax=ax,
-            legend=None
-            )
-        
-    else : 
 
-        sns.boxplot(
-            data=df_grouped,
-            x='mindstate', y=feat,
-            order=mind_order,
-            palette=['k' for i in range(len(mind_order))],
-            width=0.18,
-            fliersize=0,
-            linewidth = 2,
-            fill=False,
-            ax=ax,
-            legend=None
-            )
-        
-        sns.violinplot(
-            data=df_grouped,
-            x='mindstate', y=feat,
-            hue='subtype', hue_order=['HS','N1'],
-            palette=group_palette,
-            # linecolor="w",
-            gap=.6, 
-            split=True,
-            alpha=0.6,
-            inner=None,
-            fill=False,
-            ax=ax,
-            legend=None
-            )
+    sns.boxplot(
+        data=df_grouped,
+        x='mindstate', y=feat,
+        order=mind_order,
+        palette=['k' for i in range(len(mind_order))],
+        width=0.18,
+        fliersize=0,
+        linewidth = 2,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
+    
+    sns.violinplot(
+        data=df_grouped,
+        x='mindstate', y=feat,
+        hue='subtype', hue_order=['HS','HI'],
+        palette=group_palette,
+        # linecolor="w",
+        gap=.6, 
+        split=True,
+        alpha=0.6,
+        inner=None,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
 
     # sns.despine()
     # ax.set_xlabel("Mindstate", fontsize=14, fontweight='bold')
@@ -1486,29 +1420,25 @@ for feat in feats:
 
     fig.tight_layout()
     plt.savefig(
-        os.path.join(behavpath, "NT1_CTL", f"{feat}_combined_mindstate_black_box.png"),
+        os.path.join(behavpath, "HI_CTL", f"{feat}_combined_mindstate_black_box.png"),
         dpi=300
     )
     plt.close(fig) 
     
 # %% Behaviour | ME MS + Stripp NT1
 
-subtype_oi = "N1"
-feats = ["sleepiness", "voluntary_per", "miss", "false_alarms", "rt_go", "std_rtgo"]
+subtype_oi = "HI"
+
+feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
 
 df_grouped = sub_df.loc[sub_df.subtype == subtype_oi][
     ['sub_id','rt_go','rt_nogo','std_rtgo','hits','miss',
       'correct_rejections','false_alarms','mindstate','sleepiness']
     ].groupby(
         ['sub_id','mindstate'], as_index=False).mean()
-df_vol_av = df_vol.loc[df_vol.subtype == subtype_oi].copy().drop(
-    columns = ['daytime', "subtype"]).groupby(
-    ["sub_id","mindstate"], as_index=False
-    ).mean()
 
 minmax = {
     "sleepiness": [1, 9],
-    "voluntary_per": [0, 1],
     "miss": [0, 100],
     "false_alarms": [0, 100],
     "rt_go": [0.2, 0.8],
@@ -1516,7 +1446,6 @@ minmax = {
     }
 labels = {
     "sleepiness": "Sleepiness",
-    "voluntary_per": "Voluntary Mindstate (%)",
     "miss": "Misses (%)",
     "false_alarms": "False Alarms (%)",
     "rt_go": "Reaction Time (s)",
@@ -1524,7 +1453,6 @@ labels = {
     }
 ticks = {
     "sleepiness": [np.linspace(1,9,9), np.arange(1,10)],
-    "voluntary_per": [np.linspace(0,1,6), np.round(np.linspace(0,100,6),0).astype(int)],
     "miss": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
     "false_alarms": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
     "rt_go": [np.linspace(.2,.8,7), np.round(np.linspace(.2,.8,7),2)],
@@ -1537,63 +1465,34 @@ this_palette = ["#FFC000", "#00B050", "#0070C0", "#7030A0", "#000000"]
 for feat in feats:
     fig, ax = plt.subplots(figsize=(3,4))
 
-    if feat == "voluntary_per":
-        sns.boxplot(
-            data=df_vol_av,
-            hue='mindstate', y=feat,
-            hue_order=mind_order,
-            palette=this_palette,
-            width=.9,
-            fliersize=0,
-            linewidth = 2,
-            gap=.15,
-            fill=False,
-            ax=ax,
-            legend=None
-            )
-        
-        sns.stripplot(
-            data=df_vol_av,
-            hue='mindstate', 
-            y=feat,
-            hue_order=mind_order,
-            palette=this_palette,
-            dodge=.55, 
-            jitter=0.2,
-            alpha=0.4,
-            size=7,
-            ax=ax,
-            legend=None
-            )
-    else :
-        sns.boxplot(
-            data=df_grouped,
-            hue='mindstate', y=feat,
-            hue_order=mind_order,
-            palette=this_palette,
-            width=.9,
-            fliersize=0,
-            linewidth = 2,
-            gap=.15,
-            fill=False,
-            ax=ax,
-            legend=None
-            )
-        
-        sns.stripplot(
-            data=df_grouped,
-            hue='mindstate', 
-            y=feat,
-            hue_order=mind_order,
-            palette=this_palette,
-            dodge=.55, 
-            jitter=0.2,
-            alpha=0.4,
-            size=7,
-            ax=ax,
-            legend=None
-            )
-        
+    sns.boxplot(
+        data=df_grouped,
+        hue='mindstate', y=feat,
+        hue_order=mind_order,
+        palette=this_palette,
+        width=.9,
+        fliersize=0,
+        linewidth = 2,
+        gap=.15,
+        fill=False,
+        ax=ax,
+        legend=None
+        )
+    
+    sns.stripplot(
+        data=df_grouped,
+        hue='mindstate', 
+        y=feat,
+        hue_order=mind_order,
+        palette=this_palette,
+        dodge=.55, 
+        jitter=0.2,
+        alpha=0.4,
+        size=7,
+        ax=ax,
+        legend=None
+        )
+    
     sns.despine(bottom=True)
     ax.set_xlabel("")
     ax.set_xticks([])
@@ -1610,7 +1509,7 @@ for feat in feats:
 
     fig.tight_layout()
     plt.savefig(
-        os.path.join(behavpath, "NT1_CTL", f"{feat}_NT1_Diff_MS.png"),
+        os.path.join(behavpath, "HI_CTL", f"{feat}_NT1_Diff_MS.png"),
         dpi=300
     )
     
@@ -1636,7 +1535,7 @@ for feat in feats:
     sns.stripplot(
         data=df_grouped,
         x='mindstate', y=feat,
-        hue='subtype', hue_order=['HS','N1'],
+        hue='subtype', hue_order=['HS','HI'],
         palette=group_palette,
         dodge=.55, jitter=0.0,
         alpha=0.5,
@@ -1670,68 +1569,54 @@ for feat in feats:
 
     fig.tight_layout()
     plt.savefig(
-        os.path.join(behavpath, "NT1_CTL", f"{feat}_combined_mindstate_stripplot.png"),
+        os.path.join(behavpath, "HI_CTL", f"{feat}_combined_mindstate_stripplot.png"),
         dpi=300
     )
     plt.close(fig) 
     
 # %% Separate plots [ST diff]
 
-feats = ["sleepiness", "voluntary_per", "miss", "false_alarms", "rt_go", "std_rtgo"]
-
-this_df = (sub_df
-    [['sub_id','subtype','rt_go','rt_nogo','std_rtgo','hits','miss',
-      'correct_rejections','false_alarms','sleepiness']]
-    .groupby(['sub_id','subtype'], as_index=False)
-    .mean())
-
-df_vol_av = df_vol.copy().drop(columns = ['daytime', 'mindstate']).groupby(
-    ["sub_id", "subtype", ], as_index=False
-    ).mean()
+feats = ["sleepiness", "miss", "false_alarms", "rt_go", "std_rtgo"]
+this_df = sub_df.copy().drop(
+    columns=['daytime', 'mindstate']
+    ).groupby(['sub_id', 'subtype'], as_index = False).mean()
 
 minmax = {
+    "miss" : [0, 20],
+    "false_alarms" : [0, 100],
+    "rt_go" : [.3, .6],
+    "std_rtgo" : [0, .2],
     "sleepiness": [1, 9],
-    "voluntary_per": [0, 1],
-    "miss": [0, 100],
-    "false_alarms": [0, 100],
-    "rt_go": [0.3, 0.6],
-    "std_rtgo": [0, 0.2]
     }
 labels = {
-    "sleepiness": "Sleepiness",
-    "voluntary_per": "Voluntary Mindstate (%)",
-    "miss": "Misses (%)",
-    "false_alarms": "False Alarms (%)",
-    "rt_go": "Reaction Time (s)",
-    "std_rtgo": "SD of RT (s)"
+    "miss" : "Misses (%)",
+    "false_alarms" : "False Alarms (%)",
+    "rt_go" : "Reaction Time (ms)",
+    "std_rtgo" : "Standard Deviation RT",
+    "sleepiness": "Sleepiness"
     }
 ticks = {
-    "sleepiness": [np.linspace(1,9,9), np.arange(1,10)],
-    "voluntary_per": [np.linspace(0,1,6), np.round(np.linspace(0,100,6),0).astype(int)],
-    "miss": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
-    "false_alarms": [np.linspace(0,100,6), np.round(np.linspace(0,100,6),0).astype(int)],
-    "rt_go": [np.linspace(.3,.6,4), np.round(np.linspace(.3,.6,4),2)],
-    "std_rtgo": [np.linspace(0,.2,3), np.round(np.linspace(0,.2,3),2)]
+    "miss" : [np.linspace(0,20,6), np.linspace(0,20,6).astype(int)],
+    "false_alarms" : [np.linspace(0,100,6), np.linspace(0,100,6).astype(int)],
+    "rt_go" : [np.linspace(.3,.6, 4), np.round(np.linspace(.3,.6, 4),1)],
+    "std_rtgo" : [np.linspace(0,.2, 5), np.round(np.linspace(0,.2, 5),1)],
+    "sleepiness": [np.linspace(1,9,9), np.arange(1,10)]
     }
 
 data = this_df
 hue = 'subtype'
-hue_order = ['HS', 'N1']
+hue_order = ['HS', 'HI']
 
 fig, axs = plt.subplots(nrows = 1, ncols = len(feats), figsize = (8, 3))
 for i_f, feat in enumerate(feats) :
     ax = axs[i_f]
     y = feat
-    
-    if feat == "voluntary_per" :
-        data = df_vol_av
-    else :
-        data = this_df
-    
     sns.boxplot(
         data = data, 
+        # x = x,
         y = y,
         hue = hue,
+        # order = order,
         hue_order = hue_order,
         palette=subtype_palette, 
         fill=False,
@@ -1743,12 +1628,26 @@ for i_f, feat in enumerate(feats) :
         legend=None,
         showfliers=False
         )
-    
+    # sns.violinplot(
+    #     data=this_df,
+    #     y=feat,
+    #     hue='subtype', 
+    #     hue_order=['HS','N1'],
+    #     palette=group_palette,
+    #     # linecolor="w",
+    #     gap=.1, 
+    #     split=True,
+    #     alpha=0.6,
+    #     inner=None,
+    #     fill=False,
+    #     ax=ax,
+    #     legend=None,
+    #     )
     sns.stripplot(
-        data=data,
+        data=this_df,
         y=feat,
         hue='subtype', 
-        hue_order=['HS','N1'],
+        hue_order=['HS','HI'],
         palette=group_palette,
         dodge=True, 
         jitter=0.2,
@@ -1772,7 +1671,7 @@ for i_f, feat in enumerate(feats) :
     fig.tight_layout()
     
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "behav_boxplot_ST_only.png"
+    behavpath, "HI_CTL", "behav_boxplot_ST_only.png"
     ), dpi=300)
 
 # %% Compute TransMat MS
@@ -1843,7 +1742,7 @@ av_transi['mindstate'] = pd.Categorical(
 av_transi = av_transi.sort_values('mindstate').reset_index(drop=True)
 av_transi.set_index('mindstate', inplace=True)
 
-transi_n1 = av_transi.loc[av_transi.subtype=="N1"]
+transi_n1 = av_transi.loc[av_transi.subtype=="HI"]
 transi_hs = av_transi.loc[av_transi.subtype=="HS"]
 
 transi_n1.drop(columns="subtype", inplace=True)
@@ -1951,7 +1850,7 @@ av_transi_w = av_transi_w.sort_values(['subtype', 'mindstate']).reset_index(drop
 
 # Pivot into matrices per subtype
 transi_n1 = (
-    av_transi_w[av_transi_w.subtype == 'N1']
+    av_transi_w[av_transi_w.subtype == 'HI']
     .set_index('mindstate')[prob_cols]
     )
 transi_hs = (
@@ -2150,7 +2049,7 @@ ax.set_yticks(
 f.tight_layout()
 
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_w_mwmb_ms_nt1.png"
+    behavpath, "HI_CTL", "transimat_w_mwmb_ms_hi.png"
     ), dpi=300)
 
 f, (ax, cbar_ax) = plt.subplots(
@@ -2195,7 +2094,7 @@ ax.set_yticks(
 # ax.set_title("Controls", font = bold_font, fontsize = 14)
 f.tight_layout(pad=1)
 plt.savefig(os.path.join(
-    behavpath, "NT1_CTL", "transimat_w_mwmb_ctl.png"
+    behavpath, "HI_CTL", "transimat_w_mwmb_ctl.png"
     ), dpi=300)
 
 # %% Plot Network 
@@ -3078,61 +2977,3 @@ f.tight_layout()
 plt.savefig(os.path.join(
     behavpath, "NT1_CTL", "perment_MS.png"
     ), dpi=300)
-
-# %% Inspect Number + SEM
-# %% MS
-
-dic_msper = {}
-
-for st in df_mindstate.subtype.unique() :
-    for ms in df_mindstate.mindstate.unique() :
-        this_per = np.round(df_mindstate.percentage.loc[
-            (df_mindstate.subtype == st)
-            & (df_mindstate.mindstate == ms)
-            ].mean() * 100, 1)
-        this_sem = np.round(df_mindstate.percentage.loc[
-            (df_mindstate.subtype == st)
-            & (df_mindstate.mindstate == ms)
-            ].sem() * 100, 1)
-        
-        dic_msper[f"{st}_{ms}"] = f"{this_per} \u00B1 {this_sem}"
-
-dic_msper
-
-# %% misses
-
-feats = ["miss", "false_alarms", "rt_go", "std_rtgo", "sleepiness"]
-
-dic_behav = {}
-for st in sub_df.subtype.unique() :
-    for feat in feats :  
-        
-        this_mean = np.round(
-            sub_df[feat].loc[sub_df.subtype == st].mean(), 5
-            )
-        
-        this_sem = np.round(
-            sub_df[feat].loc[sub_df.subtype == st].sem(), 5
-            )
-    
-        dic_behav[f"{st}_{feat}"] = f"{this_mean} \u00B1 {this_sem}"
-
-dic_behav
-
-
-
-
-# %% To delete
-
-duration = 1
-n_events = 9
-rate = n_events/duration
-cycle_duration = 1
-
-timings = [0 if i < n_events-1 else duration*60-n_events*cycle_duration for i in range(n_events)]
-
-while timings[n_events-1] >= duration*60-1-n_events*cycle_duration:
-    waiting_times = np.random.poisson(rate, size = n_events)
-    timings = np.cumsum(waiting_times)
-
-

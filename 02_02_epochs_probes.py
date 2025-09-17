@@ -81,6 +81,8 @@ sub_ids = np.unique(np.array(
 
 # %% Script
 
+redo = 1
+
 for i, file_path in enumerate(files) :
     #### [1] Import Data and Minimally Process it
     sub_id = f"{file_path.split('/sub_')[1][:6]}{file_path.split('SART')[1][:3]}"
@@ -104,7 +106,7 @@ for i, file_path in enumerate(files) :
         path_preproc, "raw_icaed", f"{sub_id}_raw.fif"
         )
     
-    if os.path.exists(this_probes_savename):
+    if os.path.exists(this_probes_savename) and not redo:
         print(f"...{sub_id}, file {i+1} / {len(files)} Already processed, skipping...")
         continue
     

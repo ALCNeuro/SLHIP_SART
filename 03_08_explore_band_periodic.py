@@ -77,12 +77,12 @@ min_cluster_size = 2
 
 neighbours = config.prepare_neighbours_from_layout(epochs.info)
 
-mean_df = df.groupby(
+mean_df = df.copy().drop(columns="daytime").groupby(
     ['sub_id', 'subtype', 'channel', 'mindstate'], 
     as_index=False
     ).mean()
 
-this_df = df.loc[df.subtype!="HI"]
+this_df = df.loc[df.subtype!="N1"]
 
 # %% Distrib Values 
 
@@ -149,11 +149,11 @@ for power_type in power_types :
 # %% ME - Subtype LME
 
 vlims = {
-    "HI" : (-3, 3),
-    "N1" : (-4, 4)
+    "HI" : (-2, 2),
+    "N1" : (-2.5, 2.5)
     }
 
-fdr_corrected = 0
+fdr_corrected = 1
     
 for i_subtype, subtype in enumerate(["N1", "HI"]):
     
@@ -226,7 +226,7 @@ for i_subtype, subtype in enumerate(["N1", "HI"]):
         fig.tight_layout()
         
     plt.savefig(os.path.join(
-        bandpowerPath, "figs", f"{subtype}_vs_HS_cor.png"
+        bandpowerPath, "figs", f"{subtype}_vs_HS.png"
         ), dpi=300)
 
 # %% NT1 vs HI
@@ -290,7 +290,7 @@ for i_pt, power_type in enumerate(power_types) :
                 markersize=6
                 ),
             cmap = "coolwarm",
-            vlim = (-4.8, 4.8)
+            vlim = (-3.5, 3.5)
             )
         if i_b == len(bands) - 1 :
             fig.colorbar(im, cax = cax, orientation = 'vertical')
@@ -300,7 +300,7 @@ for i_pt, power_type in enumerate(power_types) :
     fig.tight_layout()
     
 plt.savefig(os.path.join(
-    bandpowerPath, "figs", "N1_vs_HIcor.png"
+    bandpowerPath, "figs", "N1_vs_HI.png"
     ), dpi=300)
 
 # %% ME - MS LME
@@ -360,27 +360,29 @@ for interest in cols_power :
 # %% MS LME SUBTYPE
 
 investigate_st = "HI"
+which_ms = "ON"
+ms_list = ["MW", "MB", "HALLU", "FORGOT"]
 
 n1_df = df.loc[df.subtype==investigate_st]
 
 fdr_corrected = 0
 
 for interest in cols_power :
-    model = f"{interest} ~ sleepiness + C(mindstate, Treatment('MW'))" 
+    model = f"{interest} ~ sleepiness + C(mindstate, Treatment('{which_ms}'))" 
     fig, ax = plt.subplots(
-        nrows = 1, ncols = 4, figsize = (10, 3))
+        nrows = 1, ncols = len(ms_list), figsize = (10, 3))
     
-    for i, mindstate in enumerate(["ON", "MB", "HALLU"]):
+    for i, mindstate in enumerate(ms_list):
         temp_tval = []; temp_pval = []; chan_l = []
-        cond_df = n1_df.loc[n1_df.mindstate.isin(['MW', mindstate])]
+        cond_df = n1_df.loc[n1_df.mindstate.isin([which_ms, mindstate])]
         for chan in channels :
             subdf = cond_df[
                 ['sub_id', 'mindstate', 'channel', 'sleepiness', f'{interest}']
                 ].loc[(cond_df.channel == chan)].dropna()
             md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
             mdf = md.fit()
-            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('MW'))[T.{mindstate}]"])
-            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('MW'))[T.{mindstate}]"])
+            temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('{which_ms}'))[T.{mindstate}]"])
+            temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('{which_ms}'))[T.{mindstate}]"])
             chan_l.append(chan)
             
         if np.any(np.isnan(temp_tval)) :
@@ -395,7 +397,7 @@ for interest in cols_power :
         divider = make_axes_locatable(ax[i])
         cax = divider.append_axes("right", size = "5%", pad=0.05)
         im, cm = mne.viz.plot_topomap(
-            data = -np.asarray(temp_tval),
+            data = np.asarray(temp_tval),
             pos = epochs.info,
             axes = ax[i],
             contours = 3,
@@ -407,23 +409,50 @@ for interest in cols_power :
             )
         fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-        ax[i].set_title(f"MW > {mindstate}", font = bold_font, fontsize=12)
+        ax[i].set_title(f"{mindstate} > {which_ms}", font = bold_font, fontsize=12)
     fig.suptitle(f"{interest}", font = bold_font, fontsize=16)
     fig.tight_layout(pad = 2)
     plt.savefig(os.path.join(
-        bandpowerPath, "figs", f"{interest}_{investigate_st}_compared_to_MW_sleepi_corr.png"
+        bandpowerPath, "figs", f"{interest}_{investigate_st}_compared_to_{which_ms}_sleepi_corr.png"
         ), 
                 dpi=300)
     
 # %% MS LME SUBTYPE – common colorbar per feature
 
-investigate_st = "N1"
+vlims = {
+    "N1" : {
+        "delta" : (-4, 4),
+        "theta" : (-5.5, 5.5),
+        "alpha" : (-5.5, 5.5),
+        "beta" : (-4, 4),
+        "gamma" : (-4, 4)
+        },
+    "HS" : {
+        "delta" : (-3, 3),
+        "theta" : (-3, 3),
+        "alpha" : (-3, 3),
+        "beta" : (-3, 3),
+        "gamma" : (-3, 3)
+        },
+    "HI" : {
+        "delta" : (-2.5, 2.5),
+        "theta" : (-4.5, 4.5),
+        "alpha" : (-2.5, 2.5),
+        "beta" : (-4, 4),
+        "gamma" : (-4, 4)
+        }
+    }
+
+investigate_st = "HI"
 n1_df = df[df.subtype == investigate_st]
 fdr_corrected = False
-mindstates = ["ON", "MW", "MB", "FORGOT"]
+mindstates = ["MW", "MB", "HALLU", "FORGOT"]
+ms_ref = "ON"
 
 for interest in cols_power:
-    model = f"{interest} ~ C(mindstate, Treatment('HALLU'))"
+    model = f"{interest} ~ C(mindstate, Treatment('{ms_ref}'))"
+    
+    sub_p = interest.split('_')[-1]
 
     # 1) first pass: fit all contrasts, store t- & p-values
     tvals_dict = {}
@@ -432,7 +461,7 @@ for interest in cols_power:
     for ms in mindstates:
         temp_tval = []
         temp_pval = []
-        cond_df = n1_df[n1_df.mindstate.isin(['HALLU', ms])]
+        cond_df = n1_df[n1_df.mindstate.isin([ms_ref, ms])]
 
         for chan in channels:
             subdf = (
@@ -442,7 +471,7 @@ for interest in cols_power:
             )
             md = smf.mixedlm(model, subdf, groups=subdf['sub_id'], missing='omit')
             mdf = md.fit()
-            term = f"C(mindstate, Treatment('HALLU'))[T.{ms}]"
+            term = f"C(mindstate, Treatment('{ms_ref}'))[T.{ms}]"
 
             if term in mdf.tvalues.index:
                 temp_tval.append(mdf.tvalues[term])
@@ -474,30 +503,32 @@ for interest in cols_power:
         else:
             disp_pval = temp_pval
 
-        divider = make_axes_locatable(axes[i])
-        cax = divider.append_axes("right", size="5%", pad=0.05)
+        if i == len(mindstates) - 1:
+            divider = make_axes_locatable(axes[i])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
 
         im, _ = mne.viz.plot_topomap(
             data=-np.asarray(temp_tval),
             pos=epochs.info,
             axes=axes[i],
-            contours=3,
+            contours=2,
             mask=np.array(disp_pval) <= 0.05,
             mask_params=dict(
                 marker='o', markerfacecolor='w',
                 markeredgecolor='k', linewidth=0, markersize=6
             ),
             cmap="coolwarm",
-            vlim=(vmin, vmax)
-        )
-        fig.colorbar(im, cax=cax, orientation='vertical')
-        axes[i].set_title(f"HA > {ms}", font=bold_font, fontsize=12)
+            vlim=vlims[investigate_st][sub_p]
+            )
+        if i == len(mindstates) - 1:
+            fig.colorbar(im, cax=cax, orientation='vertical')
+        # axes[i].set_title(f"{ms_ref} > {ms}", font=bold_font, fontsize=12)
 
-    fig.suptitle(interest, font=bold_font, fontsize=16)
+    # fig.suptitle(interest, font=bold_font, fontsize=16)
     fig.tight_layout(pad=2)
     outpath = os.path.join(
         bandpowerPath, "figs",
-        f"{interest}_{investigate_st}_compared_to_hallu.png"
+        f"{interest}_{investigate_st}_compared_to_ON.png"
     )
     plt.savefig(outpath, dpi=300)
     plt.close(fig)
@@ -508,8 +539,9 @@ to_permute = "subtype"
 gp_1 = "HS"
 gp_2 = "N1"
 num_permutations = 200
+redo = 0
 
-vlims = (-4, 4)
+vlims = (-2.5, 2.5)
 
 for i_pt, power_type in enumerate(power_types) :
     
@@ -528,7 +560,7 @@ for i_pt, power_type in enumerate(power_types) :
             f"CPerm_{num_permutations}_{power_type}_{band}_ME_Group.pkl"
             )
         
-        if os.path.exists(save_fname):
+        if os.path.exists(save_fname) and not redo:
             print(f"Loading {power_type}_{band}...")
             out = pd.read_pickle(save_fname)
             
@@ -599,7 +631,7 @@ for i_pt, power_type in enumerate(power_types) :
                 markersize=6
                 ),
             cmap = "coolwarm",
-            vlim = (-4, 4)
+            vlim = vlims
             )
         if i_b == len(bands) - 1 :
             fig.colorbar(im, cax = cax, orientation = 'vertical')
@@ -611,3 +643,174 @@ for i_pt, power_type in enumerate(power_types) :
 plt.savefig(os.path.join(
     bandpowerPath, "figs", f"{gp_2}_vs_{gp_1}_cluster_perm_{num_permutations}.png"
     ), dpi=300)
+
+# %% Display Cluster Stats
+
+for i_pt, power_type in enumerate(power_types) :
+    for i_b, band in enumerate(bands) :
+        
+        feature = f"{power_type}_{band}"
+        save_fname = os.path.join(
+            bandpowerPath, 
+            "figs", 
+            f"CPerm_{num_permutations}_{power_type}_{band}_ME_Group.pkl"
+            )
+        
+        if os.path.exists(save_fname) and not redo:
+            print(f"{power_type}_{band}...")
+            out = pd.read_pickle(save_fname)
+            
+            print(out['significant_clusters'])
+
+# %% ME MS within GROUP | Corrected
+
+to_permute = "mindstate"
+num_permutations = 200
+redo = 0
+
+vlims = {
+    "N1" : {
+        "delta" : (-4, 4),
+        "theta" : (-5.5, 5.5),
+        "alpha" : (-5.5, 5.5),
+        "beta" : (-4, 4),
+        "gamma" : (-4, 4)
+        },
+    "HS" : {
+        "delta" : (-3, 3),
+        "theta" : (-3, 3),
+        "alpha" : (-3, 3),
+        "beta" : (-3, 3),
+        "gamma" : (-3, 3)
+        }
+    }
+
+investigate_st = "N1"
+n1_df = df[df.subtype == investigate_st]
+fdr_corrected = False
+mindstates = ["ON", "MW", "MB", "FORGOT"]
+ms_ref = "HALLU"
+
+for feature in cols_power:
+    
+    fig, axes = plt.subplots(1, len(mindstates), figsize=(10, 3))
+    model = f"{feature} ~ C(mindstate, Treatment('{ms_ref}'))"
+    
+    sub_p = feature.split('_')[-1]
+
+    for i, ms in enumerate(mindstates):
+        
+        save_fname = os.path.join(
+            bandpowerPath, 
+            "figs", 
+            f"CPerm_{num_permutations}_{feature}_in_{investigate_st}_MS_{ms_ref}_vs_{ms}.pkl"
+            )
+        if os.path.exists(save_fname) and not redo:
+            print(f"Loading {feature}...")
+            out = pd.read_pickle(save_fname)
+            
+            orig_tvals           = out['orig_tvals']
+            significant_clusters = out['significant_clusters']
+            
+        else:
+            print(f"Computing {feature} for {ms}...")
+            ms_1 = ms_ref
+            ms_2 = ms
+            interest = f"C(mindstate, Treatment('{ms_ref}'))[T.{ms}]"
+            cond_df = n1_df[n1_df.mindstate.isin([ms_ref, ms])]
+            
+            clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
+                cond_df,
+                model, 
+                interest,
+                to_permute,
+                num_permutations,
+                neighbours,     
+                clus_alpha,
+                min_cluster_size,
+                channels,
+                )
+            
+            significant_clusters = config.identify_significant_clusters(
+                clusters_pos, 
+                clusters_neg, 
+                perm_stats_pos, 
+                perm_stats_neg, 
+                montecarlo_alpha,
+                num_permutations
+                )
+            
+            out = {
+                'clusters_pos':            clusters_pos,
+                'clusters_neg':            clusters_neg,
+                'perm_stats_pos':          perm_stats_pos,
+                'perm_stats_neg':          perm_stats_neg,
+                'orig_pvals':              orig_pvals,
+                'orig_tvals':              orig_tvals,
+                'significant_clusters':    significant_clusters
+                }
+            
+            os.makedirs(os.path.dirname(save_fname), exist_ok=True)
+            with open(save_fname, 'wb') as fp:
+                pickle.dump(out, fp)
+            
+        significant_mask = np.zeros(len(channels), dtype=bool)
+        for sign, clust_labels, stat, pval in significant_clusters:
+            for ch in clust_labels:
+                idx = np.where(channels == ch)[0][0]
+                significant_mask[idx] = True
+                
+        if i == len(mindstates) - 1 :
+            divider = make_axes_locatable(axes[i])
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+        im, _ = mne.viz.plot_topomap(
+            data=-np.asarray(orig_tvals),
+            pos=epochs.info,
+            axes=axes[i],
+            contours=3,
+            mask=significant_mask,
+            mask_params=dict(
+                marker='o', 
+                markerfacecolor='w',
+                markeredgecolor='k', 
+                linewidth=0, 
+                markersize=6
+            ),
+            cmap="coolwarm",
+            vlim=vlims[investigate_st][sub_p]
+            )
+        if i == len(mindstates) - 1 :
+            fig.colorbar(im, cax=cax, orientation='vertical')
+        axes[i].set_title(f"{ms_ref} > {ms}", font=bold_font, fontsize=12)
+    
+    # fig.suptitle(interest, font=bold_font, fontsize=16)
+    fig.tight_layout(pad=2)
+    outpath = os.path.join(
+        bandpowerPath, 
+        "figs",
+        f"CPERM_{num_permutations}_{feature}_{investigate_st}_compared_to_{ms_ref}.png"
+        )
+    plt.savefig(outpath, dpi=300)
+        
+# %% 
+
+cols_oi = ['rel_theta', 'rel_beta']
+
+for feature in cols_oi:
+
+    for i, ms in enumerate(mindstates):
+        
+        save_fname = os.path.join(
+            bandpowerPath, 
+            "figs", 
+            f"CPerm_{num_permutations}_{feature}_in_{investigate_st}_MS_{ms_ref}_vs_{ms}.pkl"
+            )
+        if os.path.exists(save_fname) and not redo:
+            print(f"\n{feature} | HA > {ms}...")
+            out = pd.read_pickle(save_fname)
+            
+            orig_tvals           = out['orig_tvals']
+            significant_clusters = out['significant_clusters']
+            
+            print(significant_clusters)
+        

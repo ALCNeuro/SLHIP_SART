@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import statsmodels.formula.api as smf
 import SLHIP_config_ALC as config
 import seaborn as sns
-from statsmodels.nonparametric.smoothers_lowess import lowess
+from scipy.ndimage import gaussian_filter
 
 from glob import glob
 from scipy.stats import sem
@@ -61,7 +61,9 @@ this_df = df.loc[df.subtype.isin(subtypes)]
 
 # %% Pz ME Subtype
 
-temp_df = this_df.loc[this_df.channel == "Fz"].copy().drop(
+chan_oi = "Pz"
+
+temp_df = this_df.loc[this_df.channel == chan_oi].copy().drop(
     columns=["n_probe", "n_block", "mindstate", "voluntary", "channel", "sleepiness"]
     ).groupby(
         ['sub_id', 'subtype', 'freq_bin'],
@@ -96,6 +98,10 @@ ax.set_ylabel('Power (dB)')
 
 # Show the plot
 fig.tight_layout()
+# Save figure
+outfile = os.path.join(fig_path, f"PSD_ME_subplots_Group_{chan_oi}.png")
+fig.savefig(outfile, dpi=300)
+print(f"Saved figure to {outfile}")
 
 # %% MS Differences, Smoothed
 
@@ -182,15 +188,8 @@ print(f"Saved figure to {outfile}")
 
 # %% GRP Differences, smoothed
 
-chan_oi = "Cz"
-
-these_mindstates = mindstates[1:]
-this_palette = [
-    ["#FFC000", "#00B050"],
-    ["#FFC000", "#0070C0"],
-    ["#FFC000", "#7030A0"],
-    ["#FFC000", "#000000"],
-]
+chan_oi = "Pz"
+smooth = 1
 
 fig, ax = plt.subplots(
     nrows=1,
@@ -204,7 +203,7 @@ for j, subtype in enumerate(subtypes):
 
     df_ms = this_df[
         (this_df['subtype']== subtype) &
-        (this_df['channel'].isin([chan_oi]))
+        (this_df['channel']== chan_oi)
         ].copy().drop(columns=['channel', 'mindstate']).groupby(
             ['sub_id', 'subtype', 'freq_bin'],
             as_index=False
@@ -218,16 +217,15 @@ for j, subtype in enumerate(subtypes):
         ].groupby('freq_bin').sem().power_value.values
 
     # LOWESS smoothing
-    psd_db = lowess(mean_power, freqs, frac=0.08)[:, 1]
-    sem_db = lowess(sem_power, freqs, frac=0.08)[:, 1]
+    psd_db = gaussian_filter(mean_power, smooth)
+    sem_db = gaussian_filter(sem_power, smooth)
 
     # Plot smoothed PSD
     ax.plot(
         freqs,
         psd_db,
-        label=ms,
         color=subtype_palette[j],
-        alpha=0.6,
+        alpha=.9,
         linewidth=2
         )
     # Fill ±SEM
@@ -235,7 +233,7 @@ for j, subtype in enumerate(subtypes):
         freqs,
         psd_db - sem_db,
         psd_db + sem_db,
-        alpha=0.1,
+        alpha=0.2,
         color=subtype_palette[j]
         )
 
@@ -243,7 +241,7 @@ for j, subtype in enumerate(subtypes):
     ax.set_xlabel('Frequency (Hz)', font = bold_font, fontsize=16)
 
 # Common y‐label
-ax.set_ylabel('Power (dB)', font = bold_font, fontsize=16)
+ax.set_ylabel('Power', font = bold_font, fontsize=16)
 
 ax.set_xlim([0.5, 40])
 
@@ -251,7 +249,7 @@ sns.despine()
 fig.tight_layout()
 
 # Save figure
-outfile = os.path.join(fig_path, "PSD_ME_subplots_GroupDiff_Cz.png")
+outfile = os.path.join(fig_path, f"PSD_ME_subplots_GroupDiff_{chan_oi}.png")
 fig.savefig(outfile, dpi=300)
 print(f"Saved figure to {outfile}")
 

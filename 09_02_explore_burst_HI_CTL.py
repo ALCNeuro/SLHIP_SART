@@ -59,7 +59,7 @@ neighbours = config.prepare_neighbours_from_layout(epochs.info, ch_type='eeg')
 
 df = df.loc[
     (~df.mindstate.isin(['DISTRACTED', 'MISS']))
-    & (df.subtype != 'HI')
+    & (df.subtype != 'N1')
     ]
 
 mindstates = ['ON', 'MW', 'MB', 'HALLU', 'FORGOT']
@@ -107,7 +107,7 @@ for i_bt, burst_type in enumerate(burst_types) :
             & (mean_df["burst_type"] == burst_type)
             ].mean())
         list_n1.append(mean_df[feature].loc[
-            (mean_df["subtype"] == "N1")
+            (mean_df["subtype"] == "HI")
             & (mean_df["channel"] == channel)
             & (mean_df["burst_type"] == burst_type)
             ].mean())
@@ -141,13 +141,13 @@ for i_bt, burst_type in enumerate(burst_types) :
         vlim = (vmin, vmax),
         cmap = "Purples"
         )
-    ax_nt[i_bt].set_title(f"NT1 - {burst_type}", font = bold_font, fontsize = 12)
+    ax_nt[i_bt].set_title(f"HI - {burst_type}", font = bold_font, fontsize = 12)
     fig.colorbar(im, cax = cax, orientation = 'vertical')
     plt.show(block = False)
     fig.tight_layout()
     
     figsavename = os.path.join(
-        figs_path, 'NT1_CTL', f'topo_{feature}_subtypes.png'
+        figs_path, 'HI_CTL', f'topo_{feature}_subtypes.png'
         )
     plt.savefig(figsavename, dpi = 300)
     
@@ -169,13 +169,13 @@ for i_bt, burst_type in enumerate(burst_types):
             ['sub_id', 'subtype', 'channel', feature]
             ].loc[
             (df.channel == chan)
-            & (df.subtype.isin(['N1', 'HS']))
+            & (df.subtype.isin(['HI', 'HS']))
             & (df.burst_type == burst_type)
             ].dropna()
         md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
         mdf = md.fit()
-        temp_tval.append(mdf.tvalues["C(subtype, Treatment('HS'))[T.N1]"])
-        temp_pval.append(mdf.pvalues["C(subtype, Treatment('HS'))[T.N1]"])
+        temp_tval.append(mdf.tvalues["C(subtype, Treatment('HS'))[T.HI]"])
+        temp_pval.append(mdf.pvalues["C(subtype, Treatment('HS'))[T.HI]"])
         chan_l.append(chan)
         
     if np.any(np.isnan(temp_tval)) :
@@ -199,12 +199,12 @@ for i_bt, burst_type in enumerate(burst_types):
     if i_bt == len(burst_types) - 1 :
         fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-    ax[i_bt].set_title(f"{burst_type} N1 > HS", fontweight = "bold", fontsize = 12)
+    ax[i_bt].set_title(f"{burst_type} HI > HS", fontweight = "bold", fontsize = 12)
     
     fig.tight_layout()
         
 plt.savefig(os.path.join(
-    figs_path, 'NT1_CTL', f'LME_topo_{feature}_ME_group_averagedblocks.png'
+    figs_path, 'HI_CTL', f'LME_topo_{feature}_ME_group_averagedblocks.png'
     ), dpi = 300)
 
 # %% Diff MS within GROUP
@@ -212,11 +212,11 @@ plt.savefig(os.path.join(
 vlims = {
     "Alpha" : {
         "HS" : (-3, 3),
-        "N1" : (-7.5, 7.5)
+        "HI" : (-2.5, 2.5)
         },
     "Theta" : {
         "HS" : (-3, 3),
-        "N1" : (-4, 4)
+        "HI" : (-5, 5)
         }
     }
 
@@ -227,7 +227,7 @@ this_df = df.loc[df.burst_type==kindaburst]
 interest = 'density'
 contrasts = [("ON", "MW"), ("ON", "MB"), ("ON", "HALLU"), ("ON", "FORGOT")]
 
-subtypes = ['HS', 'N1']
+subtypes = ['HS', 'HI']
 
 for i_s, subtype in enumerate(subtypes) :
     fig, this_ax = plt.subplots(
@@ -277,12 +277,12 @@ for i_s, subtype in enumerate(subtypes) :
             )
         if i_c == len(contrasts) - 1 :
             fig.colorbar(im, cax = cax, orientation = 'vertical')
-        this_ax[i_c].set_title(f"{contrast[1]} > {contrast[0]}", fontweight = "bold")
+        # this_ax[i_c].set_title(f"{contrast[1]} > {contrast[0]}", fontweight = "bold")
 
     # fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
     fig.tight_layout()
     figsavename = os.path.join(
-        figs_path, 'NT1_CTL', f'LME_topo_{kindaburst}_{interest}_ME_MS_{subtype}.png'
+        figs_path, 'HI_CTL', f'LME_topo_{kindaburst}_{interest}_ME_MS_{subtype}.png'
         )
     plt.savefig(figsavename, dpi = 300)
 
@@ -364,10 +364,16 @@ for i_s, subtype in enumerate(subtypes) :
 
 # %% Topo | LME - MS behav
 
-kindaburst = "Theta"
-behav_interest = "false_alarms"
+kindaburst = "Alpha"
+behav_interest = "miss"
 burst_interest = "density"
-group_oi = "N1"
+group_oi = "HI"
+
+vlims = {
+    "false_alarms" : (-4, 4),
+    "miss" : (-15, 15),
+    "rt_go" : (-4.5, 4.5)
+    }
 
 compa_df = df.loc[
     (df.subtype==group_oi)
@@ -388,9 +394,14 @@ for chan in channels :
         ['sub_id', 'subtype', 'channel', behav_interest, burst_interest]
         ].loc[(compa_df.channel == chan)].dropna()
     md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'omit')
-    mdf = md.fit()
-    temp_tval.append(mdf.tvalues[burst_interest])
-    temp_pval.append(mdf.pvalues[burst_interest])
+    try :
+        mdf = md.fit()
+        temp_tval.append(mdf.tvalues[burst_interest])
+        temp_pval.append(mdf.pvalues[burst_interest])
+    except :
+        temp_tval.append(np.nan)
+        temp_pval.append(1)
+    
     chan_l.append(chan)
     
 if np.any(np.isnan(temp_tval)) :
@@ -404,19 +415,19 @@ im, cm = mne.viz.plot_topomap(
     data = temp_tval,
     pos = epochs.info,
     axes = ax,
-    contours = 3,
+    contours = 2,
     mask = np.asarray(temp_pval) <= 0.05,
     mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
                 linewidth=0, markersize=8),
     cmap = "coolwarm",
-    # vlim = (-4, 4)
+    vlim = vlims[behav_interest]
     )
 fig.colorbar(im, cax = cax, orientation = 'vertical')
 
 ax.set_title(f"{behav_interest} ~ {burst_interest}", fontweight = "bold", fontsize = 12)
 fig.tight_layout()
 plt.savefig(os.path.join(
-    figs_path, 'NT1_CTL', f'LME_{behav_interest}_burst_{kindaburst}_{burst_interest}_in_{group_oi}.png'
+    figs_path, 'HI_CTL', f'LME_{behav_interest}_burst_{kindaburst}_{burst_interest}_in_{group_oi}.png'
     ), dpi = 300)   
 
 # %% Corrected | ME Group Burst
@@ -427,7 +438,7 @@ neighbours = config.prepare_neighbours_from_layout(info, ch_type='eeg')
 vlims = (-2.5, 2.5)
 clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
 montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
-num_permutations = 200    # adjust as needed
+num_permutations = 100    # adjust as needed
 min_cluster_size = 2     # keep clusters with at least 2 channels
 
 burst_type = 'Theta'
@@ -436,19 +447,19 @@ feature = "density"
 
 save_fname = os.path.join(
     figs_path,
-    "NT1_CTL",
+    "HI_CTL",
     f"CPerm_{num_permutations}_{burst_type}_{feature}_ME_Group.pkl"
     )
 savepath = os.path.join(
     figs_path,
-    "NT1_CTL",
+    "HI_CTL",
     f"CPerm_{num_permutations}_{burst_type}_{feature}_ME_Group.png"
     )
 
 subdf = df[
     ['sub_id', 'subtype', 'channel', feature]
     ].loc[
-    (df.subtype.isin(['N1', 'HS']))
+    (df.subtype.isin(['HI', 'HS']))
     & (df.burst_type == burst_type)
     ].dropna()
 
@@ -462,7 +473,7 @@ if os.path.exists(save_fname) :
 else : 
 
     model = f"{feature} ~ C(subtype, Treatment('HS'))" 
-    interest = "C(subtype, Treatment('HS'))[T.N1]"
+    interest = "C(subtype, Treatment('HS'))[T.HI]"
     to_permute = "subtype"
     
     clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
@@ -531,23 +542,28 @@ neighbours = config.prepare_neighbours_from_layout(info, ch_type='eeg')
 
 clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
 montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
-num_permutations = 200    # adjust as needed
+num_permutations = 100    # adjust as needed
 min_cluster_size = 2     # keep clusters with at least 2 channels
 
-vlims = (-3, 3)
-subtype = "N1"
-behav_interest = "miss"
+vlims = {
+    "false_alarms" : (-4, 4),
+    "miss" : (-15, 15),
+    "rt_go" : (-4.5, 4.5)
+    }
+
+subtype = "HS"
+behav_interest = "rt_go"
 burst_interest = "density"
 burst_type = 'Theta'
 
 save_fname = os.path.join(
     figs_path,
-    "NT1_CTL",
+    "HI_CTL",
     f"CPerm_{num_permutations}_ME_MS_{burst_type}_{subtype}_{burst_interest}_{behav_interest}.pkl"
     )
 savepath = os.path.join(
     figs_path,
-    "NT1_CTL",
+    "HI_CTL",
     f"CPerm_{num_permutations}_ME_MS_{burst_type}_{subtype}_{burst_interest}_{behav_interest}.png"
     )
 
@@ -561,9 +577,7 @@ if os.path.exists(save_fname) :
     big_dic = pd.read_pickle(save_fname)
 
     orig_tvals           = big_dic['orig_tvals']
-    channels             = big_dic['channels']
     significant_clusters = big_dic['significant_clusters']
-    print(significant_clusters)
     
 else : 
 
@@ -622,7 +636,7 @@ for sign, clust_labels, stat, pval in significant_clusters:
 # Visualize using the original t-values
 
 config.visualize_clusters(
-    orig_tvals, channels, significant_mask, info, savepath, vlims
+    orig_tvals, channels, significant_mask, info, savepath, vlims[behav_interest]
     )
 
 # Optionally, print the significant clusters for inspection.
@@ -637,7 +651,7 @@ neighbours = config.prepare_neighbours_from_layout(info, ch_type='eeg')
 vlims = (-2.5, 2.5)
 clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
 montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
-num_permutations = 200    # adjust as needed
+num_permutations = 100    # adjust as needed
 min_cluster_size = 2     # keep clusters with at least 2 channels
 
 burst_type = 'Theta'
@@ -646,19 +660,19 @@ feature = "density"
 
 save_fname = os.path.join(
     figs_path,
-    "NT1_CTL",
+    "HI_CTL",
     f"CPerm_{num_permutations}_{burst_type}_{feature}_ME_Group.pkl"
     )
 savepath = os.path.join(
     figs_path,
-    "NT1_CTL",
+    "HI_CTL",
     f"CPerm_{num_permutations}_{burst_type}_{feature}_ME_Group.png"
     )
 
 subdf = df[
     ['sub_id', 'subtype', 'channel', feature]
     ].loc[
-    (df.subtype.isin(['N1', 'HS']))
+    (df.subtype.isin(['HI', 'HS']))
     & (df.burst_type == burst_type)
     ].dropna()
 
@@ -671,10 +685,10 @@ if os.path.exists(save_fname) :
 else : 
 
     model = f"{feature} ~ C(subtype, Treatment('HS'))" 
-    interest = "C(subtype, Treatment('HS'))[T.N1]"
+    interest = "C(subtype, Treatment('HS'))[T.HI]"
     to_permute = "subtype"
     
-    clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals, channels = config.permute_and_cluster(
+    clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
         subdf,
         model, 
         interest,
@@ -682,7 +696,8 @@ else :
         num_permutations,
         neighbours,     
         clus_alpha,
-        min_cluster_size
+        min_cluster_size,
+        channels
         )
     
     # Determine significant clusters based on permutation statistics.

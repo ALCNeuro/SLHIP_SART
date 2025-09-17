@@ -28,7 +28,6 @@ from scipy.stats import exponnorm, zscore
 import matplotlib.pyplot as plt
 import os
 
-
 cleanDataPath = config.cleanDataPath
 wavesPath = config.wavesPath
 rootpath = config.rootpath

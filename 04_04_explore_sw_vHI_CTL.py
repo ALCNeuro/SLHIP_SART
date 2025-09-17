@@ -12,7 +12,6 @@ Created on 25/07/23
 
 import SLHIP_config_ALC as config
 import mne
-import pickle
 from glob import glob
 import pandas as pd
 import numpy as np
@@ -74,7 +73,7 @@ epochs.drop_channels(['TP9', 'TP10', 'VEOG', 'HEOG', 'ECG', 'RESP'])
 # df = df.loc[df.subtype != 'HI']
 df = df.loc[
     (~df.mindstate.isin(['DISTRACTED', 'MISS']))
-    & (df.subtype != 'HI')
+    & (df.subtype != 'N1')
     ]
 
 mindstates = ['ON', 'MW', 'MB', 'HALLU', 'FORGOT']
@@ -118,7 +117,7 @@ for i_f, feature in enumerate(features) :
             & (mean_df["channel"] == channel)
             ].mean())
         list_n1.append(mean_df[feature].loc[
-            (mean_df["subtype"] == "N1")
+            (mean_df["subtype"] == "HI")
             & (mean_df["channel"] == channel)
             ].mean())
     
@@ -151,13 +150,13 @@ for i_f, feature in enumerate(features) :
         vlim = (vmin, vmax),
         cmap = "Purples"
         )
-    ax_nt[i_f].set_title(f"NT1 - {feature}", font = bold_font, fontsize = 12)
+    ax_nt[i_f].set_title(f"HI - {feature}", font = bold_font, fontsize = 12)
     fig.colorbar(im, cax = cax, orientation = 'vertical')
     plt.show(block = False)
     fig.tight_layout()
     
     figsavename = os.path.join(
-        wavesPath, 'figs', 'NT1_CTL', f'topo_mindstates_subtypes_density.png'
+        wavesPath, 'figs', 'HI_CTL', 'topo_mindstates_subtypes_density.png'
         )
     plt.savefig(figsavename, dpi = 300)
     
@@ -184,12 +183,12 @@ for i, feature in enumerate(features[which]):
             ['sub_id', 'subtype', 'channel', feature]
             ].loc[
             (df.channel == chan)
-            & (df.subtype.isin(['N1', 'HS']))
+            & (df.subtype.isin(['HI', 'HS']))
             ].dropna()
         md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
         mdf = md.fit()
-        temp_tval.append(mdf.tvalues["C(subtype, Treatment('HS'))[T.N1]"])
-        temp_pval.append(mdf.pvalues["C(subtype, Treatment('HS'))[T.N1]"])
+        temp_tval.append(mdf.tvalues["C(subtype, Treatment('HS'))[T.HI]"])
+        temp_pval.append(mdf.pvalues["C(subtype, Treatment('HS'))[T.HI]"])
         chan_l.append(chan)
         
     if np.any(np.isnan(temp_tval)) :
@@ -213,11 +212,11 @@ for i, feature in enumerate(features[which]):
         )
     fig.colorbar(im, cax = cax, orientation = 'vertical')
     
-    ax[i].set_title(f"{feature} N1 > HS", fontweight = "bold", fontsize = 12)
+    ax[i].set_title(f"{feature} HI > HS", fontweight = "bold", fontsize = 12)
     
     fig.tight_layout()
         
-plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", f"me_subtype_{which}.png"), dpi = 300)   
+plt.savefig(os.path.join(wavesPath, "figs", "HI_CTL", f"me_subtype_{which}.png"), dpi = 300)   
  
 # %% Topo | LME - Subtype ME
 
@@ -242,12 +241,12 @@ for i, feature in enumerate(features):
             ['sub_id', 'subtype', 'channel', feature]
             ].loc[
             (df.channel == chan)
-            & (df.subtype.isin(['N1', 'HS']))
+            & (df.subtype.isin(['HI', 'HS']))
             ].dropna()
         md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
         mdf = md.fit()
-        temp_tval.append(mdf.tvalues["C(subtype, Treatment('HS'))[T.N1]"]])
-        temp_pval.append(mdf.pvalues["C(subtype, Treatment('HS'))[T.N1]"])
+        temp_tval.append(mdf.tvalues["C(subtype, Treatment('HS'))[T.HI]"])
+        temp_pval.append(mdf.pvalues["C(subtype, Treatment('HS'))[T.HI]"])
         chan_l.append(chan)
         
     if np.any(np.isnan(temp_tval)) :
@@ -265,7 +264,7 @@ for i, feature in enumerate(features):
         contours = 3,
         mask = np.asarray(corrected_pval) <= 0.05,
         mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
-                    linewidth=0, markersize=6),
+                    linewidth=0, markersize=8),
         cmap = "coolwarm",
         vlim = (-4, 4),
         size = 2.5
@@ -277,117 +276,14 @@ for i, feature in enumerate(features):
     
     fig.tight_layout()
         
-plt.savefig(os.path.join(wavesPath, "figs", "NT1_CTL", "me_subtype_SW_corr.png"), dpi = 300)    
-
-# %% Corrected | ME Group Burst
-
-info = epochs.info  # or info from epochs
-neighbours = config.prepare_neighbours_from_layout(info, ch_type='eeg')
-
-vlims = (-4, 4)
-clus_alpha = 0.05        # uncorrected threshold for candidate electrodes
-montecarlo_alpha = 0.05  # threshold for permutation cluster-level test
-num_permutations = 200    # adjust as needed
-min_cluster_size = 2     # keep clusters with at least 2 channels
-
-feature = "ptp_90hs"
-
-save_fname = os.path.join(
-    wavesPath,
-    'figs',
-    "NT1_CTL",
-    f"CPerm_{num_permutations}_SW_{feature}_ME_Group.pkl"
-    )
-savepath = os.path.join(
-    wavesPath,
-    'figs',
-    "NT1_CTL",
-    f"CPerm_{num_permutations}_SW_{feature}_ME_Group.png"
-    )
-
-subdf = df[
-    ['sub_id', 'subtype', 'channel', feature]
-    ].loc[
-    (df.subtype.isin(['N1', 'HS']))
-    ].dropna()
-
-if os.path.exists(save_fname) :
-    big_dic = pd.read_pickle(save_fname)
-
-    orig_tvals           = big_dic['orig_tvals']
-    significant_clusters = big_dic['significant_clusters']
-    
-else : 
-
-    model = f"{feature} ~ C(subtype, Treatment('HS'))" 
-    interest = "C(subtype, Treatment('HS'))[T.N1]"
-    to_permute = "subtype"
-    
-    clusters_pos, clusters_neg, perm_stats_pos, perm_stats_neg, orig_pvals, orig_tvals = config.permute_and_cluster(
-        subdf,
-        model, 
-        interest,
-        to_permute,
-        num_permutations,
-        neighbours,     
-        clus_alpha,
-        min_cluster_size,
-        channels
-        )
-    
-    # Determine significant clusters based on permutation statistics.
-    significant_clusters = config.identify_significant_clusters(
-        clusters_pos, 
-        clusters_neg, 
-        perm_stats_pos, 
-        perm_stats_neg, 
-        montecarlo_alpha,
-        num_permutations
-        )
-    
-    # —––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
-    # Save everything for later use (before you do the plotting!)
-    out = {
-        'clusters_pos':            clusters_pos,
-        'clusters_neg':            clusters_neg,
-        'perm_stats_pos':          perm_stats_pos,
-        'perm_stats_neg':          perm_stats_neg,
-        'orig_pvals':              orig_pvals,
-        'orig_tvals':              orig_tvals,
-        'significant_clusters':    significant_clusters
-    }
-    
-    
-    os.makedirs(os.path.dirname(save_fname), exist_ok=True)
-    with open(save_fname, 'wb') as fp:
-        pickle.dump(out, fp)
-    
-    print(f"Saved permutation‐cluster results to {save_fname}")
-    
-# Build the mask from these merged clusters
-significant_mask = np.zeros(len(channels), dtype=bool)
-for sign, clust_labels, stat, pval in significant_clusters:
-    for ch in clust_labels:
-        idx = channels.index(ch)
-        significant_mask[idx] = True
-
-# Visualize using the original t-values
-
-config.visualize_clusters(
-    orig_tvals, channels, significant_mask, info, savepath, vlims
-    )
-
-# Optionally, print the significant clusters for inspection.
-for s in significant_clusters:
-    print(f"Sign: {s[0]}, Channels: {sorted(list(s[1]))}, Cluster Stat: {s[2]:.3f}, p-value: {s[3]:.3f}")
-    
+plt.savefig(os.path.join(wavesPath, "figs", "HI_CTL", "me_subtype_SW_corr.png"), dpi = 300)    
 
 # %% Diff MS within GROUP
 
 interest = 'density_p_90'
 contrasts = [("ON", "MW"), ("ON", "MB"), ("MB", "MW"), ("ON", "HALLU"), ("ON", "FORGOT")]
 
-subtypes = ['HS', 'N1']
+subtypes = ['HS', 'HI']
 
 
 for i_s, subtype in enumerate(subtypes) :
@@ -447,7 +343,7 @@ for i_s, subtype in enumerate(subtypes) :
     # fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
     fig.tight_layout()
     figsavename = os.path.join(
-        wavesPath, 'figs',  f'topo_mindstates_subtypes_{interest}_{subtype}.png'
+        wavesPath, 'figs', "HI_CTL", f'topo_mindstates_subtypes_{interest}_{subtype}.png'
         )
 plt.savefig(figsavename, dpi = 300)
 
