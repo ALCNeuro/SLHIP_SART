@@ -898,7 +898,7 @@ plt.savefig(
 data = df_sleepi.copy().drop(columns="daytime").groupby(
     ["sub_id", "subtype", "mindstate", "sleepiness"], as_index=False
     ).mean()
-data = data.loc[data.subtype != "HI"]
+data = data.loc[data.subtype != "N1"]
 
 x = 'sleepiness'
 order = np.linspace(1, 9, 9)
@@ -909,7 +909,7 @@ hue_order = ['ON', 'MW_I', 'MB', 'MW_H', 'FORGOT']
 
 fig, axes = plt.subplots(nrows = 2, ncols = 1, figsize = (12, 10), sharex = True, sharey = True)
 
-for i, subtype in enumerate(["HS", "N1"]) :
+for i, subtype in enumerate(["HS", "HI"]) :
     ax = axes[i]
     sns.barplot(
         data = data.loc[data.subtype==subtype], 
@@ -932,11 +932,11 @@ for i, subtype in enumerate(["HS", "N1"]) :
         )
     
     ax.set_yticks(
-        ticks = np.linspace(0, .7, 8), 
-        labels = np.linspace(0, 70, 8).astype(int), 
+        ticks = np.linspace(0, 1, 6), 
+        labels = np.linspace(0, 100, 6).astype(int), 
         font = font, 
         size = 10)
-    ax.set_ylim(0, .70)
+    ax.set_ylim(0, 1)
     ax.set_ylabel("Percentage %", font = bold_font, size = 18)
     ax.set_xticks(
         ticks = np.linspace(0, 8, 9), 
@@ -952,7 +952,7 @@ for i, subtype in enumerate(["HS", "N1"]) :
 fig.tight_layout(pad = 2)
 plt.savefig(
     os.path.join(behavpath, 
-                 "NT1_CTL", 
+                 "HI_CTL", 
                  "per_sleepi_MS_perGroup.png"), 
     dpi=300 
     )

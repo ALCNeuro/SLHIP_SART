@@ -39,7 +39,7 @@ import SLHIP_config_ALC as cfg
 
 import matplotlib
 matplotlib.use('Agg')
-matplotlib.use('QtAgg')
+# matplotlib.use('QtAgg')
 
 #### Paths
 if 'arthur' in os.getcwd():
@@ -140,8 +140,8 @@ for i, file_path in enumerate(files) :
     
     if "HS_007" in sub_id :
         continue
-    if "N1_009" in sub_id :
-        input("Take over.")
+    # if "N1_009" in sub_id :
+        # input("Take over.")
     
     print(f"...Processing {sub_id}, file {i+1} / {len(files)}...")
     

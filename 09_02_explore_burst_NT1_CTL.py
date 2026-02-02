@@ -36,6 +36,15 @@ burstPath = config.burstPath
 feature_path = os.path.join(burstPath, "features")
 figs_path = os.path.join(burstPath, "figs")
 
+
+# Scoring Isa 
+
+if "arthur" in os.getcwd():
+    path_root = "/Volumes/DDE_ALC/PhD/SLHIP"
+else:
+    path_root = "your_path"
+    
+scoring_isa_path = os.path.join(path_root, "07_Scoring", "Scored", "Isabelle")
 # epochs_files  = glob(os.path.join(cleanDataPath, "*epo.fif"))
 
 channels = np.array(config.eeg_channels)
@@ -50,6 +59,71 @@ df = pd.read_csv(os.path.join(
     "All_Bursts_features.csv"
     ))
 del df['Unnamed: 0']
+
+classic_30_dic = {
+    'w'         : 'W', 
+    'N1'        : 'N1', 
+    'W'         : 'W', 
+    'W|N1'      : 'N1', 
+    'SP'        : 'R', 
+    'W calme'   : 'W', 
+    'N1|W'      : 'N1', 
+    'W|SP'      : 'R',
+    'N1|N1|W'   : 'N1',  
+    'N2'        : 'N2', 
+    'W|SP|W'    : 'R', 
+    'N1|W|N1'   : 'N1',  
+    'SP|W'      : 'R', 
+    'W|N1|W'    : 'N1', 
+    'n1|W'      : 'N1',
+    'N1|N1'     : 'N1', 
+    'W|N1|W|N1' : 'N1',
+    ""          : np.nan,
+    np.nan      : np.nan
+    }
+
+finegrained_30_dic = {
+    'w'         : 'W', 
+    'N1'        : 'N1', 
+    'W'         : 'W', 
+    'W|N1'      : 'W_N1', 
+    'SP'        : 'R', 
+    'W calme'   : 'W', 
+    'N1|W'      : 'W_N1', 
+    'W|SP'      : 'W_R',
+    'N1|N1|W'   : 'W_N1',  
+    'N2'        : 'N2', 
+    'W|SP|W'    : 'W_R', 
+    'N1|W|N1'   : 'W_N1',  
+    'SP|W'      : 'W_SP', 
+    'W|N1|W'    : 'W_N1', 
+    'n1|W'      : 'W_N1',
+    'N1|N1'     : 'N1', 
+    'W|N1|W|N1' : 'W_N1',
+    ""          : np.nan,
+    np.nan      : np.nan
+    }
+
+df_scoring = pd.read_csv(os.path.join(scoring_isa_path, "scoring_structured.csv"))
+df_scoring = df_scoring.loc[df_scoring.recording_type == "Probe_during"]
+df_scoring.dropna()
+
+simple_scoring = []
+fined_scoring = []
+for i, score in enumerate(df_scoring.scoring30s_tokens_raw) :
+    simple_scoring.append(classic_30_dic[score])
+    fined_scoring.append(finegrained_30_dic[score])
+
+df_scoring.insert(
+    loc = 13,
+    column = "tradi_scoring", 
+    value = simple_scoring)
+
+df_scoring.insert(
+    loc = 13,
+    column = "finer_scoring", 
+    value = simple_scoring)
+
 
 # %% Remove IH from df
 
@@ -70,6 +144,34 @@ mean_df = df.copy().drop(columns = ["daytime", "n_probe"])
 mean_df = mean_df.groupby(
            ['sub_id', 'subtype', 'channel', 'mindstate', 'burst_type'], 
            as_index = False).mean()
+
+# %% 
+
+df_burst_nt1 = df.loc[df.subtype=="N1"]
+stage_per_probe = []
+del_subid_daytime = []
+
+for sub_id in df_burst_nt1.sub_id.unique() : 
+    sub_df = df_burst_nt1.loc[df_burst_nt1.sub_id == sub_id]
+    sub_score = df_scoring.loc[df_scoring.sub_id == sub_id]
+    for daytime in sub_df.daytime.unique():
+        if daytime not in sub_score.session_time.unique() : 
+            del_subid_daytime.append(f"{sub_id}_{daytime}")
+            continue
+        time_df = sub_df.loc[sub_df.daytime == daytime]
+        time_scoring = sub_score.loc[sub_score.session_time == daytime]
+        for nprobe in np.asarray(time_df.n_probe) :
+            this_stage = time_scoring.tradi_scoring.iloc[nprobe]
+            stage_per_probe.append(this_stage)
+
+for identifier in del_subid_daytime :
+    sub_id = identifier[:6]
+    daytime = identifier[-2:]
+    df_burst_nt1 = df_burst_nt1.loc[
+        (df_burst_nt1.sub_id != sub_id) | (df_burst_nt1.daytime != daytime)
+        ]
+
+df_burst_nt1.insert(3, "stage", stage_per_probe)
            
 # %% Topo | Density | HS, NT1
 
@@ -79,7 +181,7 @@ burst_types = ['Alpha', 'Theta']
 fig, ax = plt.subplots(
     nrows = 2, 
     ncols = len(burst_types),
-    figsize = (6,4),
+    figsize = (8,6),
     )
 
 for i_bt, burst_type in enumerate(burst_types) :
@@ -118,12 +220,14 @@ for i_bt, burst_type in enumerate(burst_types) :
         list_hs,
         epochs.info,
         axes = ax_hs[i_bt],
-        size = 2,
+        size = 3,
         # names = channels,
         show = False,
-        contours = 2,
+        contours = 0,
         vlim = (vmin, vmax),
-        cmap = "Purples"
+        # cmap = "Purples"
+        cmap = "hot",
+        sphere=(0., 0., 0., 0.11)
         )
     fig.colorbar(im, cax = cax, orientation = 'vertical')
     ax_hs[i_bt].set_title(f"CTL - {burst_type}", font = bold_font, fontsize = 12)
@@ -134,12 +238,13 @@ for i_bt, burst_type in enumerate(burst_types) :
         list_n1,
         epochs.info,
         axes = ax_nt[i_bt],
-        size = 2,
+        size = 3,
         # names = channels,
         show = False,
-        contours = 2,
+        contours = 0,
         vlim = (vmin, vmax),
-        cmap = "Purples"
+        cmap = "hot",
+        sphere=(0., 0., 0., 0.11)
         )
     ax_nt[i_bt].set_title(f"NT1 - {burst_type}", font = bold_font, fontsize = 12)
     fig.colorbar(im, cax = cax, orientation = 'vertical')
@@ -151,6 +256,68 @@ for i_bt, burst_type in enumerate(burst_types) :
         )
     plt.savefig(figsavename, dpi = 300)
     
+# %% Topo | Density per Stage | NT1
+
+# mean_df_nt1 = df_burst_nt1.copy().drop(columns = ["daytime", "n_probe", "mindstate"])
+# mean_df_nt1 = mean_df_nt1.groupby(
+#            ['sub_id', 'subtype', 'channel', 'stage', 'burst_type'], 
+#            as_index = False).mean()
+
+# feature = 'density'
+# burst_type = 'Theta'
+# stages = ["W", "N1", "R"]
+
+# fig, ax = plt.subplots(
+#     nrows = 1, 
+#     ncols = len(stages),
+#     figsize = (12,4),
+#     )
+
+# list_values = []
+# for i_s, stage in enumerate(stages) :
+#     for subtype in subtypes :   
+#         for channel in channels :
+#             list_values.append(mean_df_nt1[feature].loc[
+#                 (mean_df_nt1["channel"] == channel)
+#                 & (mean_df_nt1["burst_type"] == burst_type)
+#                 & (mean_df_nt1["stage"] == stage)
+#                 ].mean())
+# vmin = min(list_values)
+# vmax = max(list_values)
+  
+# for i_s, stage in enumerate(stages) :
+#     list_n1 = []        
+#     for channel in channels :
+#         list_n1.append(mean_df_nt1[feature].loc[
+#             (mean_df_nt1["channel"] == channel)
+#             & (mean_df_nt1["burst_type"] == burst_type)
+#             & (mean_df_nt1["stage"] == stage)
+#             ].mean())
+    
+#     divider = make_axes_locatable(ax[i_s])
+#     cax = divider.append_axes("right", size = "5%", pad=0.05)
+#     im, cm = mne.viz.plot_topomap(
+#         list_n1,
+#         epochs.info,
+#         axes = ax[i_s],
+#         size = 3,
+#         # names = channels,
+#         show = False,
+#         contours = 0,
+#         vlim = (vmin, vmax),
+#         cmap = "hot",
+#         sphere=(0., 0., 0., 0.11)
+#         )
+#     ax[i_s].set_title(f"NT1 - {stage}", font = bold_font, fontsize = 12)
+#     fig.colorbar(im, cax = cax, orientation = 'vertical')
+#     plt.show(block = False)
+# fig.tight_layout()
+
+# figsavename = os.path.join(
+#     figs_path, 'NT1_CTL', f'topo_{feature}_nt1_stages.png'
+#     )
+# plt.savefig(figsavename, dpi = 300)
+
 # %% Topo | LME - Subtype ME
 
 burst_types = ['Alpha', 'Theta']
@@ -359,6 +526,82 @@ for i_s, subtype in enumerate(subtypes) :
     fig.tight_layout()
     figsavename = os.path.join(
         figs_path, 'NT1_CTL', f'LME_topo_{feature}_ME_MS_{subtype}_VS_HALLU.png'
+        )
+    plt.savefig(figsavename, dpi = 300)
+    
+# %% Diff MS within GROUP vs hallu
+
+vlims = {
+    "HS" : (-3, 3),
+    "N1" : (-4, 4)
+    }
+this_df = df.loc[df.burst_type=="Theta"]
+
+interest = 'density'
+contrasts = [("ON", "MW"), ("ON", "MB"), ("ON", "HALLU"), ("ON", "FORGOT")]
+
+subtypes = ['HS', 'N1']
+
+for i_s, subtype in enumerate(subtypes) :
+    fig, this_ax = plt.subplots(
+        nrows = 1, 
+        ncols = len(contrasts), # MW > ON ; MB > ON ; MW > MB (for start)
+        figsize = (10,2.5),
+        )
+    for i_c, contrast in enumerate(contrasts) :
+        temp_tval = []; temp_pval = []; chan_l = []
+        cond_df = this_df.loc[
+            (this_df.mindstate.isin(contrast))
+            & (this_df.subtype == subtype)
+            ]
+        
+        model = f"{interest} ~ C(mindstate, Treatment('{contrast[0]}'))" 
+    
+        for chan in channels :
+            subdf = cond_df[
+                ['sub_id', 'subtype', 'mindstate', 'channel', f'{interest}']
+                ].loc[(cond_df.channel == chan)].dropna()
+            md = smf.mixedlm(model, subdf, groups = subdf['sub_id'], missing = 'drop')
+            mdf = md.fit()
+            
+            if f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]" not in mdf.tvalues.index :
+                temp_tval.append(np.nan)
+                temp_pval.append(1)
+                chan_l.append(chan)
+            else : 
+                temp_tval.append(mdf.tvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                temp_pval.append(mdf.pvalues[f"C(mindstate, Treatment('{contrast[0]}'))[T.{contrast[1]}]"])
+                chan_l.append(chan)
+            
+        if np.any(np.isnan(temp_tval)) :
+            for pos in np.where(np.isnan(temp_tval))[0] :
+                temp_tval[pos] = np.nanmean(temp_tval)
+             
+        # _, corrected_pval = fdrcorrection(temp_pval)
+        
+        if i_c == len(contrasts) - 1 :
+            divider = make_axes_locatable(this_ax[i_c])
+            cax = divider.append_axes("right", size = "5%", pad=0.05)
+        im, cm = mne.viz.plot_topomap(
+            data = -np.asarray(temp_tval),
+            pos = epochs.info,
+            axes = this_ax[i_c],
+            contours = 3,
+            mask = np.asarray(temp_pval) <= 0.05,
+            mask_params = dict(marker='o', markerfacecolor='w', markeredgecolor='k',
+                        linewidth=0, markersize=8),
+            cmap = "coolwarm",
+            vlim = vlims[subtype]
+            )
+        if i_c == len(contrasts) - 1 :
+            fig.colorbar(im, cax = cax, orientation = 'vertical')
+            
+        this_ax[i_c].set_title(f"{contrast[0]} > {contrast[1]}", fontweight = "bold")
+
+# fig.suptitle(f"{interest}", font = bold_font, fontsize = 24)
+    fig.tight_layout()
+    figsavename = os.path.join(
+        figs_path, 'NT1_CTL', f'LME_topo_{interest}_ME_MS_{subtype}_VS_ON.png'
         )
     plt.savefig(figsavename, dpi = 300)
 

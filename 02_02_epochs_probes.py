@@ -81,7 +81,7 @@ sub_ids = np.unique(np.array(
 
 # %% Script
 
-redo = 1
+redo = 0
 
 for i, file_path in enumerate(files) :
     #### [1] Import Data and Minimally Process it

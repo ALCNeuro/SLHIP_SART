@@ -308,8 +308,8 @@ for i, file_path in enumerate(files):
             plt.savefig(this_savepath)
             plt.close(fig)
     
-# df = pd.DataFrame.from_dict(big_dic)    
-# df.to_csv(os.path.join(path_scoring_coded, f"code_correspondance_{group_oi}.csv"))
+df = pd.DataFrame.from_dict(big_dic)    
+df.to_csv(os.path.join(path_scoring_coded, f"code_correspondance_{group_oi}.csv"))
 
 # %% Generate Images per subject : Resting States
 
